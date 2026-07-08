@@ -187,11 +187,13 @@ body{ margin:0; background: var(--bg); color: var(--ink); font-family: var(--fon
 .streak-bar-nums b{ color: var(--ink); font-size:11px; }
 .tiles-bg-wrap{ position:relative; }
 .tiles-bg-image{
-  position:absolute; inset:-24px; z-index:0; pointer-events:none;
+  position:absolute; inset:-40px; z-index:0; pointer-events:none;
   background-size:cover; background-position:center 30%;
   opacity:0.16;
-  -webkit-mask-image: radial-gradient(ellipse 75% 75% at center, black 35%, transparent 88%);
-  mask-image: radial-gradient(ellipse 75% 75% at center, black 35%, transparent 88%);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 18%, black 82%, transparent), linear-gradient(to bottom, transparent, black 18%, black 82%, transparent);
+  -webkit-mask-composite: source-in, source-over;
+  mask-image: linear-gradient(to right, transparent, black 18%, black 82%, transparent), linear-gradient(to bottom, transparent, black 18%, black 82%, transparent);
+  mask-composite: intersect;
 }
 .stat-tiles{ display:grid; grid-template-columns: repeat(3, 1fr); gap:14px; justify-items:center; position:relative; z-index:1; }
 .union-jack-header{
@@ -378,8 +380,8 @@ td.rowlabel.today-col{ border-left: 4px solid var(--accent); }
 footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing: 1px; margin-top: 24px; text-transform: uppercase; }
 @media (max-width: 640px){
   #block-rank{ display:none; margin:0; }
-  .kpi-with-rank-wrap{ display:flex; gap:0; align-items:stretch; }
-  .kpi-grid{ grid-template-columns: 1fr; flex: 4 1 0; margin-top:0; min-width:0; }
+  .kpi-with-rank-wrap{ display:flex; gap:16px; align-items:stretch; }
+  .kpi-grid{ grid-template-columns: 1fr; flex: 3.3 1 0; margin-top:0; min-width:0; }
   .rank-vertical-center-wrap{ flex: 1 1 0; display:flex; justify-content:center; align-items:stretch; min-width:0; }
   .rank-vertical{ display:flex; flex-direction:row; align-items:stretch; width:auto; flex-shrink:0; padding:24px 20px 24px 0; gap:20px; }
   .rank-vertical-labels{ position:relative; width:15px; flex-shrink:0; }
@@ -3033,33 +3035,48 @@ function playAppOpenSting(){
     if(!Ctx) return;
     const ctx = new Ctx();
     const t0 = ctx.currentTime + 0.05;
-    const dur = 4.3;
+    const dur = 5.2;
 
     const masterGain = ctx.createGain();
     masterGain.gain.setValueAtTime(0.0001, t0);
-    masterGain.gain.exponentialRampToValueAtTime(0.30, t0 + 1.1);
-    masterGain.gain.setValueAtTime(0.30, t0 + dur - 1.3);
+    masterGain.gain.exponentialRampToValueAtTime(0.28, t0 + 1.7);
+    masterGain.gain.setValueAtTime(0.28, t0 + dur - 1.6);
     masterGain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    masterGain.connect(ctx.destination);
 
     const lowpass = ctx.createBiquadFilter();
     lowpass.type = 'lowpass';
-    lowpass.frequency.value = 1900;
-    lowpass.Q.value = 0.6;
+    lowpass.frequency.value = 1700;
+    lowpass.Q.value = 0.5;
     lowpass.connect(masterGain);
-    masterGain.connect(ctx.destination);
 
-    function stringVoice(detuneCents, gainMul){
+    // simple hall-like ambience via a short feedback delay
+    const delay = ctx.createDelay();
+    delay.delayTime.value = 0.32;
+    const feedback = ctx.createGain();
+    feedback.gain.value = 0.28;
+    const delayFilter = ctx.createBiquadFilter();
+    delayFilter.type = 'lowpass';
+    delayFilter.frequency.value = 1400;
+    lowpass.connect(delay);
+    delay.connect(delayFilter);
+    delayFilter.connect(feedback);
+    feedback.connect(delay);
+    delay.connect(masterGain);
+
+    function stringVoice(detuneCents, gainMul, freqStart, freqMid, freqEnd, midTime, endTime){
       const osc = ctx.createOscillator();
       osc.type = 'sawtooth';
       osc.detune.setValueAtTime(detuneCents, t0);
-      osc.frequency.setValueAtTime(220, t0);
-      osc.frequency.setValueAtTime(220, t0 + 2.1);
-      osc.frequency.linearRampToValueAtTime(246.94, t0 + 2.6);
+      osc.frequency.setValueAtTime(freqStart, t0);
+      osc.frequency.setValueAtTime(freqStart, t0 + midTime);
+      osc.frequency.linearRampToValueAtTime(freqMid, t0 + midTime + 0.5);
+      if(freqEnd){ osc.frequency.setValueAtTime(freqMid, t0 + endTime); osc.frequency.linearRampToValueAtTime(freqEnd, t0 + endTime + 0.6); }
 
       const vibrato = ctx.createOscillator();
-      vibrato.frequency.value = 4.3;
+      vibrato.frequency.value = 4.1;
       const vibratoGain = ctx.createGain();
-      vibratoGain.gain.value = 2.4;
+      vibratoGain.gain.value = 2.2;
       vibrato.connect(vibratoGain);
       vibratoGain.connect(osc.frequency);
 
@@ -3071,9 +3088,15 @@ function playAppOpenSting(){
       vibrato.start(t0); vibrato.stop(t0 + dur);
       osc.start(t0); osc.stop(t0 + dur);
     }
-    stringVoice(0, 1);
-    stringVoice(-7, 0.6);
-    stringVoice(7, 0.6);
+    // upper string section (violins) - a slow three-note phrase
+    stringVoice(0, 0.85, 220, 246.94, 261.63, 2.4, 3.9);
+    stringVoice(-8, 0.55, 220, 246.94, 261.63, 2.4, 3.9);
+    stringVoice(8, 0.55, 220, 246.94, 261.63, 2.4, 3.9);
+    stringVoice(-14, 0.35, 220, 246.94, 261.63, 2.4, 3.9);
+    stringVoice(14, 0.35, 220, 246.94, 261.63, 2.4, 3.9);
+    // low string section (cello/viola) - sustained, adds solemnity
+    stringVoice(0, 0.5, 110, 110, null, 2.4, 3.9);
+    stringVoice(-6, 0.32, 110, 110, null, 2.4, 3.9);
   }catch(e){ /* audio not available */ }
 }
 function playCelebrationSound(){
