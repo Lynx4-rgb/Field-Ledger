@@ -207,11 +207,12 @@ body{ margin:0; background: var(--bg); color: var(--ink); font-family: var(--fon
 .stat-circle{ width:118px; height:118px; border-radius:50%; border:2px solid var(--accent-dim); background: radial-gradient(circle at 32% 28%, rgba(255,255,255,0.10), transparent 55%), var(--panel-alt); box-shadow: inset 0 0 0 3px var(--panel), 0 3px 8px rgba(0,0,0,0.4); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:10px; cursor:pointer; text-align:center; transition: border-color .15s ease; }
 .medal-ribbon{ width:26px; height:24px; margin-top:-3px; clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%); box-shadow: 0 2px 4px rgba(0,0,0,0.35); }
 .stat-circle:hover{ border-color: var(--accent); }
-.stat-circle.edit-mode{ cursor: grab; border-style: dashed; border-color: var(--accent-dim); animation: edit-mode-wiggle 0.4s ease-in-out infinite alternate; }
+.stat-circle.edit-mode{ cursor: pointer; border-style: dashed; border-color: var(--accent-dim); animation: edit-mode-wiggle 0.4s ease-in-out infinite alternate; }
+.stat-circle.tap-selected{ outline: 3px solid var(--c-gold); outline-offset:2px; animation:none; }
 .dashboard-block{ margin-bottom: 26px; }
-.dashboard-block.edit-mode{ border: 1px dashed var(--accent-dim); border-radius: 6px; padding: 10px; }
-.block-drag-handle{ cursor: grab; user-select:none; background: var(--accent-dim); color: var(--ink); font-size:10px; letter-spacing:1px; text-transform:uppercase; padding:8px 12px; border-radius:4px; margin-bottom:12px; text-align:center; font-weight:700; }
-.block-drag-handle:active{ cursor: grabbing; }
+.dashboard-block.edit-mode{ border: 1px dashed var(--accent-dim); border-radius: 6px; padding: 10px; cursor:pointer; }
+.dashboard-block.tap-selected{ outline: 3px solid var(--c-gold); outline-offset:2px; }
+.block-drag-handle{ cursor: pointer; user-select:none; background: var(--accent-dim); color: var(--ink); font-size:10px; letter-spacing:1px; text-transform:uppercase; padding:8px 12px; border-radius:4px; margin-bottom:12px; text-align:center; font-weight:700; }
 .dashboard-block.drag-target{ outline: 2px dashed var(--c-gold); }
 .stat-circle.edit-mode:active{ cursor: grabbing; }
 @keyframes edit-mode-wiggle{ 0%{ transform: rotate(-0.6deg); } 100%{ transform: rotate(0.6deg); } }
@@ -238,9 +239,9 @@ td.rowlabel.today-col{ border-left: 4px solid var(--accent); }
 .train-list, .wk-list{ display:flex; flex-direction:column; gap:8px; }
 .train-row, .wk-row{ display:flex; align-items:center; justify-content:space-between; padding: 10px 14px; border: 1px solid var(--border); background: var(--panel-alt); }
 .train-row .day, .wk-row .day{ letter-spacing:1px; color: var(--accent); width: 100px; text-transform:uppercase; font-size:12px; flex-shrink:0; font-weight:700;}
-.drag-handle{ cursor: grab; user-select: none; touch-action: none; }
-.drag-handle:active{ cursor: grabbing; }
+.drag-handle{ cursor: pointer; user-select: none; }
 .train-row.drag-target, .wk-row.drag-target{ outline: 2px dashed var(--accent); }
+.train-row.tap-selected, .wk-row.tap-selected{ outline: 3px solid var(--c-gold); outline-offset:2px; }
 .activity-select, .topic-select{ flex:1; min-width:0; background: var(--panel); border:1px solid var(--border); color: var(--ink); font-family: var(--font); font-size:12px; padding:6px 8px; margin-left:10px; border-radius:2px; }
 .activity-select:hover, .topic-select:hover{ border-color: var(--accent); }
 .note-slot{ display:flex; align-items:center; gap:6px; flex-shrink:0; min-width:0; }
@@ -394,16 +395,6 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
 }
 @keyframes update-toast-kf{ 0%{opacity:0; transform:translateX(-50%) translateY(-10px);} 10%{opacity:1; transform:translateX(-50%) translateY(0);} 85%{opacity:1;} 100%{opacity:0;} }
 @media (max-width: 640px){
-  .mobile-dash-header-bg{
-    display:none; position:absolute; top:0; left:0; right:0; height:230px; z-index:0; pointer-events:none;
-    background-size:cover; background-position:center 20%; filter:brightness(1.15);
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, transparent 4%, black 13%, black 100%), linear-gradient(to right, transparent, black 6%, black 94%, transparent);
-    -webkit-mask-composite: source-in, source-over;
-    mask-image: linear-gradient(to bottom, transparent 0%, transparent 4%, black 13%, black 100%), linear-gradient(to right, transparent, black 6%, black 94%, transparent);
-    mask-composite: intersect;
-  }
-  body.dashboard-tab-active .mobile-dash-header-bg{ display:block; }
-  body.dashboard-tab-active .appbar{ position:relative; z-index:1; }
   #block-rank{ display:none; margin:0; }
   .kpi-with-rank-wrap{ display:flex; gap:16px; align-items:stretch; }
   .kpi-grid{ grid-template-columns: 1fr; flex: 3.3 1 0; margin-top:0; min-width:0; }
@@ -453,7 +444,6 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
 </style>
 </head>
 <body>
-<div class="mobile-dash-header-bg" id="mobileDashHeaderBg"></div>
 <div id="hellWeekBannerWrap" style="display:none;">
   <div class="hellweek-banner">
     <div class="hellweek-marquee">
@@ -492,12 +482,12 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
     </div>
     <div class="panel-body" id="dashboardPanelBody">
       <div class="dashboard-block" data-block="rank" data-key="rank" id="block-rank">
-        <div class="block-drag-handle" data-key="rank" style="display:none;">⠿ Drag to reorder — Rank Progress</div>
+        <div class="block-drag-handle" data-key="rank" style="display:none;">⠿ Tap, then tap another to swap — Rank Progress</div>
         <div class="rank-track-wrap" id="rankTrackWrap"></div>
       </div>
 
       <div class="dashboard-block" data-block="summary" data-key="summary" id="block-summary">
-        <div class="block-drag-handle" data-key="summary" style="display:none;">⠿ Drag to reorder — Today's Progress</div>
+        <div class="block-drag-handle" data-key="summary" style="display:none;">⠿ Tap, then tap another to swap — Today's Progress</div>
         <div class="summary-card">
           <div class="hero-score" id="heroScore"></div>
           <div class="period-row" id="periodRow"></div>
@@ -505,7 +495,7 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
       </div>
 
       <div class="dashboard-block" data-block="kpi" data-key="kpi" id="block-kpi">
-        <div class="block-drag-handle" data-key="kpi" style="display:none;">⠿ Drag to reorder — Category Breakdown</div>
+        <div class="block-drag-handle" data-key="kpi" style="display:none;">⠿ Tap, then tap another to swap — Category Breakdown</div>
         <div class="kpi-with-rank-wrap" id="kpiWithRankWrap">
           <div class="kpi-grid" id="kpiGrid"></div>
           <div class="rank-vertical-center-wrap">
@@ -515,7 +505,7 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
       </div>
 
       <div class="dashboard-block" data-block="trends" data-key="trends" id="block-trends">
-        <div class="block-drag-handle" data-key="trends" style="display:none;">⠿ Drag to reorder — Trends</div>
+        <div class="block-drag-handle" data-key="trends" style="display:none;">⠿ Tap, then tap another to swap — Trends</div>
         <div class="section-title">Trends</div>
         <div class="chart-controls">
           <div class="btn-group" id="rangeButtons">
@@ -542,7 +532,7 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
       </div>
 
       <div class="dashboard-block" data-block="streaks" data-key="streaks" id="block-streaks">
-        <div class="block-drag-handle" data-key="streaks" style="display:none;">⠿ Drag to reorder — Streaks</div>
+        <div class="block-drag-handle" data-key="streaks" style="display:none;">⠿ Tap, then tap another to swap — Streaks</div>
         <div class="section-title">Streaks</div>
         <div class="panel-desc" style="margin-top:0;">Your active streaks, your record week, and your strongest activity overall.</div>
         <div class="streak-bars" id="streakBars"></div>
@@ -1529,7 +1519,7 @@ function renderStreaks(){
       <div class="medal-ribbon" style="background:${ribbonStripes(t.label)};"></div>
     </div>`).join('');
   if(dashboardEditMode){
-    wireDragSwap(tilesEl, '.stat-circle', '.stat-circle', (labelA, labelB)=>{
+    wireTapSwap(tilesEl, '.stat-circle', (labelA, labelB)=>{
       const order = tiles.map(t=>t.label);
       const ia = order.indexOf(labelA), ib = order.indexOf(labelB);
       if(ia===-1 || ib===-1) return false;
@@ -1716,10 +1706,6 @@ function applyHeroImages(){
     const src = (id==='heroWorkouts' && isHellWeekActiveNow()) ? IMAGES.hellweek : IMAGES[map[id]];
     el.style.backgroundImage = `url('${src}')`;
   });
-  const headerBg = document.getElementById('mobileDashHeaderBg');
-  if(headerBg) headerBg.style.backgroundImage = `url('${IMAGES.dashboard}')`;
-  const activeTab = document.querySelector('.tab.active');
-  document.body.classList.toggle('dashboard-tab-active', !activeTab || activeTab.dataset.tab === 'dashboard');
 }
 
 /* ---------- SAS-style quote card ---------- */
@@ -2264,34 +2250,30 @@ function renderBible(){
 }
 
 /* ---------- Training ---------- */
-function wireDragSwap(container, rowSelector, handleSelector, swapFn, rerenderFn){
-  container.querySelectorAll(handleSelector).forEach(handle=>{
-    handle.addEventListener('pointerdown', (e)=>{
-      e.preventDefault();
-      const sourceRow = handle.closest(rowSelector);
-      const sourceKey = handle.dataset.key;
-      sourceRow.style.opacity = '0.5';
-      function onMove(ev){
-        container.querySelectorAll(rowSelector).forEach(r=>r.classList.remove('drag-target'));
-        const el = document.elementFromPoint(ev.clientX, ev.clientY);
-        const targetRow = el && el.closest(rowSelector);
-        if(targetRow && targetRow!==sourceRow && container.contains(targetRow)) targetRow.classList.add('drag-target');
+let tapSwapSelected = null;
+function wireTapSwap(container, itemSelector, swapFn, rerenderFn){
+  tapSwapSelected = null;
+  container.querySelectorAll(itemSelector).forEach(item=>{
+    item.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const key = item.dataset.key;
+      if(!key) return;
+      if(!tapSwapSelected){
+        tapSwapSelected = { key, el: item };
+        item.classList.add('tap-selected');
+        return;
       }
-      function onUp(ev){
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
-        sourceRow.style.opacity = '';
-        container.querySelectorAll(rowSelector).forEach(r=>r.classList.remove('drag-target'));
-        const el = document.elementFromPoint(ev.clientX, ev.clientY);
-        const targetRow = el && el.closest(rowSelector);
-        if(targetRow && targetRow!==sourceRow && container.contains(targetRow)){
-          const targetKey = targetRow.dataset.key;
-          const ok = swapFn(sourceKey, targetKey);
-          if(ok){ scheduleSave(); rerenderFn(); renderTabPcts(); renderDashboard(); updateTodayKpiWidget(); }
-        }
+      if(tapSwapSelected.key === key){
+        item.classList.remove('tap-selected');
+        tapSwapSelected = null;
+        return;
       }
-      document.addEventListener('pointermove', onMove);
-      document.addEventListener('pointerup', onUp);
+      const sourceEl = tapSwapSelected.el;
+      const sourceKey = tapSwapSelected.key;
+      const ok = swapFn(sourceKey, key);
+      sourceEl.classList.remove('tap-selected');
+      tapSwapSelected = null;
+      if(ok){ scheduleSave(); rerenderFn(); renderTabPcts(); renderDashboard(); updateTodayKpiWidget(); }
     });
   });
 }
@@ -2308,7 +2290,7 @@ function renderTraining(){
     const pct = min/TRAINING_TARGET;
     const locked = isFuture(d);
     html += `<div class="train-row ${weekend?'weekend':''} ${isToday(d)?'today-row':''}" data-key="${key}">
-      <div class="day drag-handle" data-key="${key}" title="Drag to swap with another day">${fmtDayDate(d)}</div>
+      <div class="day drag-handle" data-key="${key}" title="Tap, then tap another day to swap">${fmtDayDate(d)}</div>
       <div class="topic">${weekend ? 'Off duty' : topic}</div>
       ${weekend ? '' : `<div class="mcell${min>=TRAINING_TARGET?' full':''}${locked?' locked':''}" style="--fillpct:${Math.round(pct*100)}%; --fillcolor:${pctColor(pct)};" data-key="${key}">${locked?'—':min}</div>`}
     </div>`;
@@ -2323,7 +2305,7 @@ function renderTraining(){
       checkStreakRecords('training');
     });
   });
-  wireDragSwap(list, '.train-row', '.drag-handle', (keyA, keyB)=>{
+  wireTapSwap(list, '.train-row', (keyA, keyB)=>{
     const dA = new Date(keyA+'T00:00:00'), dB = new Date(keyB+'T00:00:00');
     if(!isWeekday(dA) || !isWeekday(dB)) return false;
     const dayA = ensureDay(keyA), dayB = ensureDay(keyB);
@@ -2535,7 +2517,7 @@ function renderWorkouts(){
     const locked = isFuture(d);
     const note = day.workout.note;
     html += `<div class="wk-row ${off?'offduty':''} ${isToday(d)?'today-row':''}" data-key="${key}">
-      <div class="day drag-handle" data-key="${key}" title="Drag to swap with another day">${fmtDayDate(d)}</div>
+      <div class="day drag-handle" data-key="${key}" title="Tap, then tap another day to swap">${fmtDayDate(d)}</div>
       <div class="icon">${iconFor(activity)}</div>
       <div class="activity">${activity}</div>
       <span class="note-slot" data-key="${key}" data-note="${escapeHtml(note)}">${note ? `<span class="activity-note">${escapeHtml(note)}</span>` : ''}<button class="note-btn" title="Add a note">✎</button></span>
@@ -2552,7 +2534,7 @@ function renderWorkouts(){
       checkStreakRecords('workouts');
     });
   });
-  wireDragSwap(list, '.wk-row', '.drag-handle', (keyA, keyB)=>{
+  wireTapSwap(list, '.wk-row', (keyA, keyB)=>{
     const dA = new Date(keyA+'T00:00:00'), dB = new Date(keyB+'T00:00:00');
     const dayA = ensureDay(keyA), dayB = ensureDay(keyB);
     const activityA = getWorkoutActivity(dA), activityB = getWorkoutActivity(dB);
@@ -2829,7 +2811,7 @@ function applyDashboardEditModeUI(){
     if(handle) handle.style.display = dashboardEditMode ? 'block' : 'none';
   });
   if(dashboardEditMode){
-    wireDragSwap(document.getElementById('dashboardPanelBody'), '.dashboard-block', '.block-drag-handle', (keyA, keyB)=>{
+    wireTapSwap(document.getElementById('dashboardPanelBody'), '.dashboard-block', (keyA, keyB)=>{
       let order = (data.dashboardBlockOrder && data.dashboardBlockOrder.length) ? data.dashboardBlockOrder.slice() : DASHBOARD_BLOCK_DEFAULT_ORDER.slice();
       DASHBOARD_BLOCK_DEFAULT_ORDER.forEach(id=>{ if(!order.includes(id)) order.push(id); });
       const ia = order.indexOf(keyA), ib = order.indexOf(keyB);
@@ -3419,7 +3401,6 @@ document.querySelectorAll('.tab').forEach(tab=>{
     tab.classList.add('active');
     document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
     document.getElementById('weeknavBar').style.display = ['reading','training','workouts'].includes(tab.dataset.tab) ? 'flex' : 'none';
-    document.body.classList.toggle('dashboard-tab-active', tab.dataset.tab === 'dashboard');
     if(tab.dataset.tab === 'dashboard'){
       if(!maybeShowColonelOverlay()) maybeShowQuote('dashboard');
     } else {
