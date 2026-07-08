@@ -739,6 +739,32 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
       <button class="theme-swatch" data-theme="camo" style="background:#2B2B1E;border-color:#8A9A5B;" title="Camo"></button>
       <button class="theme-swatch" data-theme="desertcamo" style="background:#D9CBA8;border-color:#8B6F3D;" title="Desert Camo"></button>
     </div>
+    <div class="settings-label">Cloud Sync (via JSONBin.io)</div>
+    <p style="font-size:10px;color:var(--muted);margin-top:0;">Keep this device and others in step without transferring files. Needs a free account at jsonbin.io — paste your API key below once per device.</p>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <input type="text" id="jsonbinKeyInput" placeholder="Your JSONBin API Key" style="flex:1;min-width:0;background:var(--panel);border:1px solid var(--border);color:var(--ink);font-family:var(--font);font-size:11px;padding:8px;">
+      <button class="add-track-btn" id="saveJsonbinKeyBtn" style="margin-top:0;">Save</button>
+    </div>
+    <div id="cloudSyncNotConnected" style="display:none;">
+      <button class="add-track-btn" id="createBackupBtn" style="width:100%;margin-top:0;">Create Backup &amp; Get Code</button>
+      <div style="text-align:center;font-size:9px;color:var(--muted);margin:10px 0;letter-spacing:1px;text-transform:uppercase;">— or, if you already have a code —</div>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="connectCodeInput" placeholder="Paste code from other device" style="flex:1;min-width:0;background:var(--panel);border:1px solid var(--border);color:var(--ink);font-family:var(--font);font-size:11px;padding:8px;">
+        <button class="add-track-btn" id="connectCodeBtn" style="margin-top:0;">Connect</button>
+      </div>
+    </div>
+    <div id="cloudSyncConnected" style="display:none;">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">Your sync code — copy this to connect another device:</div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+        <input type="text" id="syncCodeDisplay" readonly style="flex:1;min-width:0;background:var(--panel);border:1px solid var(--border);color:var(--ink);font-family:monospace;font-size:10px;padding:8px;">
+        <button class="add-track-btn" id="copyCodeBtn" style="margin-top:0;">Copy</button>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="add-track-btn" id="cloudPushBtn" style="flex:1;margin-top:0;">⬆ Push This Device</button>
+        <button class="add-track-btn" id="cloudPullBtn" style="flex:1;margin-top:0;">⬇ Pull From Cloud</button>
+      </div>
+      <button id="disconnectCloudBtn" style="width:100%;margin-top:10px;background:transparent;border:1px solid var(--border);color:var(--muted);padding:8px;cursor:pointer;font-family:var(--font);font-size:10px;">Disconnect this device (cloud backup stays intact)</button>
+    </div>
     <div class="settings-label">Backup / Transfer Progress</div>
     <p style="font-size:10px;color:var(--muted);margin-top:0;">Moving to a different copy of this app? Export a file here, then use Import on the other copy.</p>
     <div style="display:flex;gap:8px;">
@@ -3144,6 +3170,7 @@ document.getElementById('settingsBtn').addEventListener('click', ()=>{
   document.getElementById('settingsNameInput').value = data.userName || '';
   document.querySelectorAll('.theme-swatch').forEach(b=> b.classList.toggle('active', b.dataset.theme===(data.theme||'default')));
   updateOpeningSoundStatus();
+  refreshCloudSyncUI();
   document.getElementById('settingsModal').classList.add('show');
 });
 document.getElementById('settingsClose').addEventListener('click', ()=>{
@@ -3199,6 +3226,128 @@ document.getElementById('openingSoundResetBtn').addEventListener('click', ()=>{
   data.openingSoundName = null;
   scheduleSave();
   updateOpeningSoundStatus();
+});
+function getSyncConfig(){
+  return {
+    apiKey: localStorage.getItem('fl_jsonbin_key') || '',
+    binId: localStorage.getItem('fl_jsonbin_binid') || ''
+  };
+}
+function saveSyncConfig(apiKey, binId){
+  if(apiKey !== undefined) localStorage.setItem('fl_jsonbin_key', apiKey);
+  if(binId !== undefined) localStorage.setItem('fl_jsonbin_binid', binId);
+}
+async function cloudCreateBackup(){
+  const cfg = getSyncConfig();
+  if(!cfg.apiKey){ alert('Please enter and save your JSONBin API key first.'); return null; }
+  try{
+    const res = await fetch('https://api.jsonbin.io/v3/b', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': cfg.apiKey, 'X-Bin-Name': 'FieldLedger' },
+      body: JSON.stringify(data)
+    });
+    const json = await res.json();
+    if(!res.ok) throw new Error(json.message || 'Failed to create backup');
+    const binId = json.metadata.id;
+    saveSyncConfig(undefined, binId);
+    return binId;
+  }catch(e){
+    alert('Could not create cloud backup: ' + e.message);
+    return null;
+  }
+}
+async function cloudPush(){
+  const cfg = getSyncConfig();
+  if(!cfg.apiKey || !cfg.binId){ alert('Not connected to a cloud backup yet.'); return false; }
+  try{
+    const res = await fetch('https://api.jsonbin.io/v3/b/' + cfg.binId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': cfg.apiKey },
+      body: JSON.stringify(data)
+    });
+    if(!res.ok){ const j = await res.json().catch(()=>({})); throw new Error(j.message || 'Push failed'); }
+    return true;
+  }catch(e){ alert('Could not push to cloud: ' + e.message); return false; }
+}
+async function cloudPull(){
+  const cfg = getSyncConfig();
+  if(!cfg.apiKey || !cfg.binId){ alert('Not connected to a cloud backup yet.'); return null; }
+  try{
+    const res = await fetch('https://api.jsonbin.io/v3/b/' + cfg.binId + '/latest', {
+      method: 'GET',
+      headers: { 'X-Master-Key': cfg.apiKey, 'X-Bin-Meta': 'false' }
+    });
+    if(!res.ok){ const j = await res.json().catch(()=>({})); throw new Error(j.message || 'Pull failed'); }
+    const remoteData = await res.json();
+    if(!remoteData || remoteData.version !== 5) throw new Error('That code did not return valid Field Ledger data.');
+    return remoteData;
+  }catch(e){ alert('Could not pull from cloud: ' + e.message); return null; }
+}
+function refreshCloudSyncUI(){
+  const cfg = getSyncConfig();
+  document.getElementById('jsonbinKeyInput').value = cfg.apiKey;
+  const connected = !!cfg.binId;
+  document.getElementById('cloudSyncNotConnected').style.display = connected ? 'none' : 'block';
+  document.getElementById('cloudSyncConnected').style.display = connected ? 'block' : 'none';
+  if(connected) document.getElementById('syncCodeDisplay').value = cfg.binId;
+}
+document.getElementById('saveJsonbinKeyBtn').addEventListener('click', ()=>{
+  saveSyncConfig(document.getElementById('jsonbinKeyInput').value.trim(), undefined);
+  alert('API key saved on this device.');
+});
+document.getElementById('createBackupBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('createBackupBtn');
+  btn.textContent = 'Creating...'; btn.disabled = true;
+  const binId = await cloudCreateBackup();
+  btn.textContent = 'Create Backup & Get Code'; btn.disabled = false;
+  if(binId){ refreshCloudSyncUI(); alert('Backup created — your code is ready to copy and use on another device.'); }
+});
+document.getElementById('connectCodeBtn').addEventListener('click', async ()=>{
+  const code = document.getElementById('connectCodeInput').value.trim();
+  if(!code) return;
+  saveSyncConfig(undefined, code);
+  const btn = document.getElementById('connectCodeBtn');
+  btn.textContent = 'Connecting...'; btn.disabled = true;
+  const remoteData = await cloudPull();
+  btn.textContent = 'Connect'; btn.disabled = false;
+  if(remoteData){
+    document.getElementById('settingsModal').classList.remove('show');
+    showConfirm('Connected. This will replace progress on THIS device with the cloud backup. Continue?', ()=>{
+      data = remoteData; saveNow(); applyTheme(); render(); refreshCloudSyncUI();
+    });
+  } else {
+    refreshCloudSyncUI();
+  }
+});
+document.getElementById('copyCodeBtn').addEventListener('click', ()=>{
+  const input = document.getElementById('syncCodeDisplay');
+  input.select();
+  try{ document.execCommand('copy'); }catch(e){}
+});
+document.getElementById('cloudPushBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('cloudPushBtn');
+  btn.textContent = 'Pushing...'; btn.disabled = true;
+  const ok = await cloudPush();
+  btn.textContent = '⬆ Push This Device'; btn.disabled = false;
+  if(ok) alert('Pushed to the cloud successfully.');
+});
+document.getElementById('cloudPullBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('cloudPullBtn');
+  btn.textContent = 'Pulling...'; btn.disabled = true;
+  const remoteData = await cloudPull();
+  btn.textContent = '⬇ Pull From Cloud'; btn.disabled = false;
+  if(remoteData){
+    document.getElementById('settingsModal').classList.remove('show');
+    showConfirm('This will replace progress on THIS device with the cloud version. Continue?', ()=>{
+      data = remoteData; saveNow(); applyTheme(); render();
+    });
+  }
+});
+document.getElementById('disconnectCloudBtn').addEventListener('click', ()=>{
+  showConfirm('Disconnect this device from cloud sync? Your cloud backup itself will NOT be deleted, and you can reconnect with the same code later.', ()=>{
+    saveSyncConfig(undefined, '');
+    refreshCloudSyncUI();
+  });
 });
 function applyImportedData(parsed, onDone){
   if(!parsed || parsed.version !== 5){ alert('That doesn\'t look like a valid Field Ledger export file.'); return; }
