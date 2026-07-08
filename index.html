@@ -273,7 +273,6 @@ td.rowlabel.today-col{ border-left: 4px solid var(--accent); }
 .period-row{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin: 14px 0 0; padding-top:16px; border-top: 1px dashed var(--border); }
 .kpi-with-rank-wrap{ display:block; }
 .rank-vertical{ display:none; }
-.mobile-dash-mini-image{ display:none; }
 .kpi-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top:4px; }
 .kpi-card{ border: 1px solid var(--border); border-radius:8px; background: var(--panel-alt); padding: 14px 12px 16px; display:flex; flex-direction:column; min-width:0; }
 .kpi-card .kpi-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:6px; flex-wrap:wrap;}
@@ -396,6 +395,14 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
 }
 @keyframes update-toast-kf{ 0%{opacity:0; transform:translateX(-50%) translateY(-10px);} 10%{opacity:1; transform:translateX(-50%) translateY(0);} 85%{opacity:1;} 100%{opacity:0;} }
 @media (max-width: 640px){
+  .summary-flex-row{ display:flex; flex-direction:row; align-items:center; gap:6px; justify-content:center; }
+  #heroScore{ flex:0 0 auto; }
+  #heroScore .gauge{ width:206px !important; }
+  #heroScore .gauge svg{ width:190px !important; height:180px !important; }
+  #periodRow{ display:flex; flex-direction:column; gap:2px; flex:0 0 auto; border-top:none; margin:0; padding-top:0; justify-content:center; }
+  #periodRow .gauge{ width:82px !important; }
+  #periodRow .gauge svg{ width:66px !important; height:62px !important; }
+  #periodRow .label{ font-size:8px; }
   #dashboardPanelBody{ display:flex; flex-direction:column; }
   #block-summary{ order:1; }
   #block-kpi{ order:2; }
@@ -403,12 +410,6 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
   #block-streaks{ order:4; }
   #block-rank{ order:5; display:none; margin:0; }
   #editLayoutBtnWrap{ order:6; }
-  .mobile-dash-mini-image{
-    display:block; height:150px; margin:16px 0; border-radius:6px; overflow:hidden; position:relative;
-    background-size:cover; background-position:center 25%;
-    -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
-    mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
-  }
   .kpi-with-rank-wrap{ display:flex; gap:16px; align-items:stretch; }
   .kpi-grid{ grid-template-columns: 1fr; flex: 3.3 1 0; margin-top:0; min-width:0; }
   .rank-vertical-center-wrap{ flex: 1 1 0; display:flex; justify-content:center; align-items:stretch; min-width:0; }
@@ -502,9 +503,10 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
       <div class="dashboard-block" data-block="summary" data-key="summary" id="block-summary">
         <div class="block-drag-handle" data-key="summary" style="display:none;">⠿ Tap, then tap another to swap — Today's Progress</div>
         <div class="summary-card">
-          <div class="hero-score" id="heroScore"></div>
-          <div class="mobile-dash-mini-image" id="mobileDashMiniImage"></div>
-          <div class="period-row" id="periodRow"></div>
+          <div class="summary-flex-row">
+            <div class="hero-score" id="heroScore"></div>
+            <div class="period-row" id="periodRow"></div>
+          </div>
         </div>
       </div>
 
@@ -1719,8 +1721,6 @@ function applyHeroImages(){
     const src = (id==='heroWorkouts' && isHellWeekActiveNow()) ? IMAGES.hellweek : IMAGES[map[id]];
     el.style.backgroundImage = `url('${src}')`;
   });
-  const miniImg = document.getElementById('mobileDashMiniImage');
-  if(miniImg) miniImg.style.backgroundImage = `url('${IMAGES.dashboard}')`;
 }
 
 /* ---------- SAS-style quote card ---------- */
