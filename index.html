@@ -3035,68 +3035,38 @@ function playAppOpenSting(){
     if(!Ctx) return;
     const ctx = new Ctx();
     const t0 = ctx.currentTime + 0.05;
-    const dur = 5.2;
+    const dur = 4.6;
 
     const masterGain = ctx.createGain();
     masterGain.gain.setValueAtTime(0.0001, t0);
-    masterGain.gain.exponentialRampToValueAtTime(0.28, t0 + 1.7);
-    masterGain.gain.setValueAtTime(0.28, t0 + dur - 1.6);
+    masterGain.gain.exponentialRampToValueAtTime(0.13, t0 + 1.7);
+    masterGain.gain.setValueAtTime(0.13, t0 + dur - 1.5);
     masterGain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     masterGain.connect(ctx.destination);
 
     const lowpass = ctx.createBiquadFilter();
     lowpass.type = 'lowpass';
-    lowpass.frequency.value = 1700;
-    lowpass.Q.value = 0.5;
+    lowpass.frequency.value = 650;
+    lowpass.Q.value = 0.4;
     lowpass.connect(masterGain);
 
-    // simple hall-like ambience via a short feedback delay
-    const delay = ctx.createDelay();
-    delay.delayTime.value = 0.32;
-    const feedback = ctx.createGain();
-    feedback.gain.value = 0.28;
-    const delayFilter = ctx.createBiquadFilter();
-    delayFilter.type = 'lowpass';
-    delayFilter.frequency.value = 1400;
-    lowpass.connect(delay);
-    delay.connect(delayFilter);
-    delayFilter.connect(feedback);
-    feedback.connect(delay);
-    delay.connect(masterGain);
-
-    function stringVoice(detuneCents, gainMul, freqStart, freqMid, freqEnd, midTime, endTime){
+    function humVoice(freq, gainMul, detuneCents){
       const osc = ctx.createOscillator();
-      osc.type = 'sawtooth';
-      osc.detune.setValueAtTime(detuneCents, t0);
-      osc.frequency.setValueAtTime(freqStart, t0);
-      osc.frequency.setValueAtTime(freqStart, t0 + midTime);
-      osc.frequency.linearRampToValueAtTime(freqMid, t0 + midTime + 0.5);
-      if(freqEnd){ osc.frequency.setValueAtTime(freqMid, t0 + endTime); osc.frequency.linearRampToValueAtTime(freqEnd, t0 + endTime + 0.6); }
-
-      const vibrato = ctx.createOscillator();
-      vibrato.frequency.value = 4.1;
-      const vibratoGain = ctx.createGain();
-      vibratoGain.gain.value = 2.2;
-      vibrato.connect(vibratoGain);
-      vibratoGain.connect(osc.frequency);
-
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      osc.detune.value = detuneCents;
       const voiceGain = ctx.createGain();
       voiceGain.gain.value = gainMul;
       osc.connect(voiceGain);
       voiceGain.connect(lowpass);
-
-      vibrato.start(t0); vibrato.stop(t0 + dur);
       osc.start(t0); osc.stop(t0 + dur);
     }
-    // upper string section (violins) - a slow three-note phrase
-    stringVoice(0, 0.85, 220, 246.94, 261.63, 2.4, 3.9);
-    stringVoice(-8, 0.55, 220, 246.94, 261.63, 2.4, 3.9);
-    stringVoice(8, 0.55, 220, 246.94, 261.63, 2.4, 3.9);
-    stringVoice(-14, 0.35, 220, 246.94, 261.63, 2.4, 3.9);
-    stringVoice(14, 0.35, 220, 246.94, 261.63, 2.4, 3.9);
-    // low string section (cello/viola) - sustained, adds solemnity
-    stringVoice(0, 0.5, 110, 110, null, 2.4, 3.9);
-    stringVoice(-6, 0.32, 110, 110, null, 2.4, 3.9);
+    // a low, quiet, minor-toned hum: root + a close-detuned double for a gentle breathing shimmer,
+    // plus a minor third above for a subtly sad, unresolved colour
+    humVoice(110, 1, 0);
+    humVoice(110, 0.65, 5);
+    humVoice(130.81, 0.45, 0);
+    humVoice(164.81, 0.22, 0);
   }catch(e){ /* audio not available */ }
 }
 function playCelebrationSound(){
