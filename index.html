@@ -3243,7 +3243,7 @@ async function cloudCreateBackup(){
   try{
     const res = await fetch('https://api.jsonbin.io/v3/b', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Master-Key': cfg.apiKey, 'X-Bin-Name': 'FieldLedger' },
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': cfg.apiKey },
       body: JSON.stringify(data)
     });
     const json = await res.json();
@@ -3252,7 +3252,10 @@ async function cloudCreateBackup(){
     saveSyncConfig(undefined, binId);
     return binId;
   }catch(e){
-    alert('Could not create cloud backup: ' + e.message);
+    (()=>{
+      const hint = e.message === 'Failed to fetch' ? '\n\nThis usually means the request never reached JSONBin — check that your API key was pasted correctly (no extra spaces), that you have an internet connection, and that no ad-blocker or privacy extension is blocking requests to jsonbin.io.' : '';
+      alert('Could not create cloud backup: ' + e.message + hint);
+    })();
     return null;
   }
 }
@@ -3267,7 +3270,10 @@ async function cloudPush(){
     });
     if(!res.ok){ const j = await res.json().catch(()=>({})); throw new Error(j.message || 'Push failed'); }
     return true;
-  }catch(e){ alert('Could not push to cloud: ' + e.message); return false; }
+  }catch(e){ (()=>{
+      const hint = e.message === 'Failed to fetch' ? '\n\nThis usually means the request never reached JSONBin — check that your API key was pasted correctly (no extra spaces), that you have an internet connection, and that no ad-blocker or privacy extension is blocking requests to jsonbin.io.' : '';
+      alert('Could not push to cloud: ' + e.message + hint);
+    })(); return false; }
 }
 async function cloudPull(){
   const cfg = getSyncConfig();
@@ -3281,7 +3287,10 @@ async function cloudPull(){
     const remoteData = await res.json();
     if(!remoteData || remoteData.version !== 5) throw new Error('That code did not return valid Field Ledger data.');
     return remoteData;
-  }catch(e){ alert('Could not pull from cloud: ' + e.message); return null; }
+  }catch(e){ (()=>{
+      const hint = e.message === 'Failed to fetch' ? '\n\nThis usually means the request never reached JSONBin — check that your API key was pasted correctly (no extra spaces), that you have an internet connection, and that no ad-blocker or privacy extension is blocking requests to jsonbin.io.' : '';
+      alert('Could not pull from cloud: ' + e.message + hint);
+    })(); return null; }
 }
 function refreshCloudSyncUI(){
   const cfg = getSyncConfig();
