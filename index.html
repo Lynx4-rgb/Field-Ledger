@@ -114,7 +114,7 @@ body{ margin:0; background: var(--bg); color: var(--ink); font-family: var(--fon
 .weeknav .range{ color: var(--muted); letter-spacing:1px; min-width: 140px; text-align:center; font-size:12px;}
 .weeknav .today-btn{ width:auto; padding:0 10px; font-size:10px; letter-spacing:1px; text-transform:uppercase; }
 .weeknav input[type=date]{ background: var(--panel-alt); border:1px solid var(--border); color: var(--ink); font-family: var(--font); font-size:11px; padding:4px; border-radius:2px; width:128px; }
-.tabs{ display:flex; gap: 4px; margin: 16px 0; flex-wrap: wrap; }
+.tabs{ display:flex; gap: 4px; margin: 16px 0; flex-wrap: wrap; background: var(--bg); position:relative; z-index:1; }
 .tab{ flex:1; min-width: 100px; display:flex; align-items:center; justify-content:center; gap: 6px; padding: 10px 6px; background: var(--panel); border: 1px solid var(--border); border-bottom: 3px solid transparent; cursor:pointer; letter-spacing: 1px; text-transform: uppercase; font-size: 12px; font-weight:600; color: var(--muted); transition: all .15s ease; }
 .tab:hover{ color: var(--ink); }
 .tab.active{ color: var(--accent); border-bottom-color: var(--accent); background: var(--panel-alt); }
@@ -382,7 +382,28 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
 .memory-bar-track{ height:5px; background:rgba(255,255,255,0.15); border-radius:3px; overflow:hidden; }
 .memory-bar-fill{ height:100%; width:0%; background:var(--accent); border-radius:3px; transition:width .3s ease; }
 .memory-bar-label{ font-size:9px; color:var(--muted); margin-top:6px; text-align:center; letter-spacing:0.5px; text-transform:none; }
+.avatar-lightbox{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:300; align-items:center; justify-content:center; cursor:pointer; }
+.avatar-lightbox.show{ display:flex; }
+.avatar-lightbox img{ width:min(70vw,320px); height:min(70vw,320px); border-radius:50%; object-fit:cover; border:4px solid var(--c-gold); box-shadow:0 10px 40px rgba(0,0,0,0.6); }
+.update-toast{
+  position:fixed; top:20px; left:50%; transform:translateX(-50%); z-index:260;
+  background: var(--panel-alt); border:1px solid var(--c-gold); color: var(--c-gold);
+  padding:12px 22px; border-radius:6px; font-family:var(--font); font-size:11px; font-weight:700;
+  letter-spacing:1px; text-align:center; box-shadow:0 8px 24px rgba(0,0,0,0.5);
+  animation: update-toast-kf 5s ease forwards; max-width:90vw;
+}
+@keyframes update-toast-kf{ 0%{opacity:0; transform:translateX(-50%) translateY(-10px);} 10%{opacity:1; transform:translateX(-50%) translateY(0);} 85%{opacity:1;} 100%{opacity:0;} }
 @media (max-width: 640px){
+  .mobile-dash-header-bg{
+    display:none; position:absolute; top:0; left:0; right:0; height:230px; z-index:0; pointer-events:none;
+    background-size:cover; background-position:center 20%; filter:brightness(1.15);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, transparent 4%, black 13%, black 100%), linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+    -webkit-mask-composite: source-in, source-over;
+    mask-image: linear-gradient(to bottom, transparent 0%, transparent 4%, black 13%, black 100%), linear-gradient(to right, transparent, black 6%, black 94%, transparent);
+    mask-composite: intersect;
+  }
+  body.dashboard-tab-active .mobile-dash-header-bg{ display:block; }
+  body.dashboard-tab-active .appbar{ position:relative; z-index:1; }
   #block-rank{ display:none; margin:0; }
   .kpi-with-rank-wrap{ display:flex; gap:16px; align-items:stretch; }
   .kpi-grid{ grid-template-columns: 1fr; flex: 3.3 1 0; margin-top:0; min-width:0; }
@@ -432,6 +453,7 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
 </style>
 </head>
 <body>
+<div class="mobile-dash-header-bg" id="mobileDashHeaderBg"></div>
 <div id="hellWeekBannerWrap" style="display:none;">
   <div class="hellweek-banner">
     <div class="hellweek-marquee">
@@ -624,7 +646,7 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
 <svg width="0" height="0" style="position:absolute;">
   <filter id="flagRippleFilter">
     <feTurbulence type="fractalNoise" baseFrequency="0.012 0.05" numOctaves="2" seed="3" result="turbulence">
-      <animate attributeName="baseFrequency" dur="10s" values="0.012 0.05;0.017 0.055;0.012 0.05" repeatCount="indefinite"/>
+      <animate attributeName="baseFrequency" dur="14s" from="0.010 0.045" to="0.024 0.065" repeatCount="indefinite"/>
     </feTurbulence>
     <feDisplacementMap in="SourceGraphic" in2="turbulence" scale="7" xChannelSelector="R" yChannelSelector="G"/>
   </filter>
@@ -642,6 +664,9 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
   </div>
 </div>
 
+<div class="avatar-lightbox" id="avatarLightbox">
+  <img id="avatarLightboxImg" src="" alt="">
+</div>
 <div class="modal-overlay" id="tileDetailModal">
   <div class="modal-card">
     <div id="tileDetailIcon" style="font-size:30px;"></div>
@@ -712,7 +737,7 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
     <h2>Settings</h2>
     <div class="settings-label">Profile</div>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-      <img id="settingsAvatarPreview" src="" alt="" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);">
+      <img id="settingsAvatarPreview" src="" alt="" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--accent);cursor:pointer;">
       <div style="flex:1;">
         <input type="file" id="changeAvatarInput" accept="image/*" style="display:none;">
         <button class="add-track-btn" id="changeAvatarBtn" style="margin-top:0;">Change Photo</button>
@@ -1691,6 +1716,10 @@ function applyHeroImages(){
     const src = (id==='heroWorkouts' && isHellWeekActiveNow()) ? IMAGES.hellweek : IMAGES[map[id]];
     el.style.backgroundImage = `url('${src}')`;
   });
+  const headerBg = document.getElementById('mobileDashHeaderBg');
+  if(headerBg) headerBg.style.backgroundImage = `url('${IMAGES.dashboard}')`;
+  const activeTab = document.querySelector('.tab.active');
+  document.body.classList.toggle('dashboard-tab-active', !activeTab || activeTab.dataset.tab === 'dashboard');
 }
 
 /* ---------- SAS-style quote card ---------- */
@@ -1782,8 +1811,11 @@ function generateContextualAdvice(){
   return null;
 }
 function maybeShowColonelOverlay(){
-  const advice = generateContextualAdvice();
+  let advice = generateContextualAdvice();
   if(!advice || Math.random() > 0.4) return false;
+  if(data.userName && Math.random() < 0.4){
+    advice = `${data.userName}, ${advice.charAt(0).toLowerCase()}${advice.slice(1)}`;
+  }
   document.getElementById('colonelAdviceText').textContent = advice;
   document.getElementById('colonelOverlay').classList.add('show');
   return true;
@@ -1996,7 +2028,10 @@ function maybeShowQuote(tabKey){
   const generic = QUOTES[tabKey] || QUOTES.dashboard;
   const contextual = buildContextualCandidates(tabKey);
   const pool = [...generic, ...contextual, ...contextual];
-  const text = pool[Math.floor(Math.random()*pool.length)];
+  let text = pool[Math.floor(Math.random()*pool.length)];
+  if(data.userName && Math.random() < 0.35){
+    text = `${data.userName}, ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+  }
   const el = document.getElementById('sasFloating');
   document.getElementById('sasFloatingImg').src = AVATAR;
   document.getElementById('sasFloatingText').textContent = `"${text}"`;
@@ -3045,6 +3080,20 @@ function playVictoryFanfare2(){
     });
   }catch(e){ /* audio not available */ }
 }
+const APP_VERSION = 'v1';
+function checkForUpdateNotice(){
+  try{
+    const seen = localStorage.getItem('fl_seen_version');
+    if(seen !== null && seen !== APP_VERSION){
+      const el = document.createElement('div');
+      el.className = 'update-toast';
+      el.textContent = '⚙ THIS APP HAS BEEN UPDATED TO THE LATEST VERSION';
+      document.body.appendChild(el);
+      setTimeout(()=> el.remove(), 5000);
+    }
+    localStorage.setItem('fl_seen_version', APP_VERSION);
+  }catch(e){}
+}
 let currentlyPlayingAudio = null;
 function fadeInAudioElement(audio, duration, targetVolume){
   audio.volume = 0;
@@ -3205,6 +3254,13 @@ document.getElementById('settingsBtn').addEventListener('click', ()=>{
 document.getElementById('settingsClose').addEventListener('click', ()=>{
   document.getElementById('settingsModal').classList.remove('show');
 });
+document.getElementById('settingsAvatarPreview').addEventListener('click', ()=>{
+  document.getElementById('avatarLightboxImg').src = document.getElementById('settingsAvatarPreview').src;
+  document.getElementById('avatarLightbox').classList.add('show');
+});
+document.getElementById('avatarLightbox').addEventListener('click', ()=>{
+  document.getElementById('avatarLightbox').classList.remove('show');
+});
 document.getElementById('changeAvatarBtn').addEventListener('click', ()=>{
   document.getElementById('changeAvatarInput').click();
 });
@@ -3363,6 +3419,7 @@ document.querySelectorAll('.tab').forEach(tab=>{
     tab.classList.add('active');
     document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
     document.getElementById('weeknavBar').style.display = ['reading','training','workouts'].includes(tab.dataset.tab) ? 'flex' : 'none';
+    document.body.classList.toggle('dashboard-tab-active', tab.dataset.tab === 'dashboard');
     if(tab.dataset.tab === 'dashboard'){
       if(!maybeShowColonelOverlay()) maybeShowQuote('dashboard');
     } else {
@@ -3429,6 +3486,7 @@ function finishWelcome(){
   document.querySelector('.wrap').classList.add('app-fade-in');
   setTimeout(()=> overlay.remove(), 800);
   maybeOfferChallenge();
+  setTimeout(checkForUpdateNotice, 900);
   if(currentlyPlayingAudio && !currentlyPlayingAudio.paused){
     const audio = currentlyPlayingAudio;
     const duckToVol = Math.max(0, audio.volume*0.35);
