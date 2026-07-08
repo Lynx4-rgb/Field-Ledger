@@ -957,9 +957,9 @@ async function storageGet(key){
 }
 async function storageSet(key, value){
   if(window.storage && typeof window.storage.set === 'function'){
-    try{ await window.storage.set(key, value, false); return; }catch(e){ /* fall through to localStorage */ }
+    try{ await window.storage.set(key, value, false); return true; }catch(e){ /* fall through to localStorage */ }
   }
-  try{ localStorage.setItem(key, value); }catch(e){ console.error('local save failed', e); }
+  try{ localStorage.setItem(key, value); return true; }catch(e){ console.error('local save failed', e); return false; }
 }
 let isFirstEverLoad = false;
 async function load(){
@@ -1003,12 +1003,20 @@ async function load(){
 }
 function scheduleSave(){
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(async ()=>{ data.lastModified = Date.now(); try{ await storageSet('ledger-data', JSON.stringify(data)); }catch(e){ console.error('save failed', e); } updateMemoryBar(); }, 350);
+  saveTimer = setTimeout(async ()=>{
+    data.lastModified = Date.now();
+    let ok = false;
+    try{ ok = await storageSet('ledger-data', JSON.stringify(data)); }catch(e){ console.error('save failed', e); }
+    if(!ok) alert('⚠️ Save failed — your device may be out of storage space. If you recently uploaded a large file (like an opening sound or celebration track), try a smaller one, or remove one of your custom sounds in Settings.');
+    updateMemoryBar();
+  }, 350);
 }
 async function saveNow(){
   clearTimeout(saveTimer);
   data.lastModified = Date.now();
-  try{ await storageSet('ledger-data', JSON.stringify(data)); }catch(e){ console.error('save failed', e); }
+  let ok = false;
+  try{ ok = await storageSet('ledger-data', JSON.stringify(data)); }catch(e){ console.error('save failed', e); }
+  if(!ok) alert('⚠️ Save failed — your device may be out of storage space. If you recently uploaded a large file (like an opening sound or celebration track), try a smaller one, or remove one of your custom sounds in Settings.');
   updateMemoryBar();
 }
 let isResetting = false;
@@ -3231,7 +3239,7 @@ document.getElementById('openingSoundBtn').addEventListener('click', ()=>{
 document.getElementById('openingSoundInput').addEventListener('change', (e)=>{
   const file = e.target.files[0];
   if(!file) return;
-  if(file.size > 4*1024*1024){ alert('Please use a file under 4MB.'); e.target.value=''; return; }
+  if(file.size > 1.5*1024*1024){ alert('Please use a file under 1.5MB — audio files take up much more room once saved, and larger ones risk silently failing to save on some devices.'); e.target.value=''; return; }
   const reader = new FileReader();
   reader.onload = ()=>{
     data.openingSound = reader.result;
@@ -3306,7 +3314,7 @@ document.getElementById('addTrackBtn').addEventListener('click', ()=>{
 document.getElementById('addTrackInput').addEventListener('change', (e)=>{
   const file = e.target.files[0];
   if(!file) return;
-  if(file.size > 4*1024*1024){ alert('Please use a file under 4MB.'); e.target.value=''; return; }
+  if(file.size > 1.5*1024*1024){ alert('Please use a file under 1.5MB — audio files take up much more room once saved, and larger ones risk silently failing to save on some devices.'); e.target.value=''; return; }
   const reader = new FileReader();
   reader.onload = ()=>{
     if(!Array.isArray(data.customTracks)) data.customTracks = [];
