@@ -735,7 +735,7 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
     <div style="display:flex;gap:8px;">
       <input type="file" id="openingSoundInput" accept="audio/*" style="display:none;">
       <button class="add-track-btn" id="openingSoundBtn" style="margin-top:0;flex:1;">Upload Opening Sound</button>
-      <button class="add-track-btn" id="openingSoundResetBtn" style="margin-top:0;flex:1;">Reset to Drums</button>
+      <button class="add-track-btn" id="openingSoundResetBtn" style="margin-top:0;flex:1;">Reset to Default</button>
     </div>
     <div class="settings-label">Colour Theme</div>
     <div class="theme-swatch-row" id="themeSwatchRow">
@@ -3068,7 +3068,13 @@ function playAppOpenSting(){
       const audio = new Audio(data.openingSound);
       audio.volume = 0;
       currentlyPlayingAudio = audio;
-      audio.play().then(()=> fadeInAudioElement(audio, 2000, 1)).catch(()=>{});
+      audio.play().then(()=> fadeInAudioElement(audio, 2000, 1)).catch(()=>{
+        const retryPlay = ()=>{
+          audio.play().then(()=> fadeInAudioElement(audio, 2000, 1)).catch(()=>{});
+        };
+        document.addEventListener('click', retryPlay, {once:true});
+        document.addEventListener('touchstart', retryPlay, {once:true});
+      });
       return;
     }catch(e){}
   }
@@ -3217,7 +3223,7 @@ document.getElementById('saveNameBtn').addEventListener('click', ()=>{
 });
 function updateOpeningSoundStatus(){
   const el = document.getElementById('openingSoundStatus');
-  el.textContent = data.openingSound ? `Using: ${data.openingSoundName || 'custom sound'}` : 'Using: built-in drums';
+  el.textContent = data.openingSound ? `Using: ${data.openingSoundName || 'custom sound'}` : 'Using: default sound';
 }
 document.getElementById('openingSoundBtn').addEventListener('click', ()=>{
   document.getElementById('openingSoundInput').click();
@@ -3230,7 +3236,7 @@ document.getElementById('openingSoundInput').addEventListener('change', (e)=>{
   reader.onload = ()=>{
     data.openingSound = reader.result;
     data.openingSoundName = file.name;
-    scheduleSave();
+    saveNow();
     updateOpeningSoundStatus();
   };
   reader.readAsDataURL(file);
@@ -3239,7 +3245,7 @@ document.getElementById('openingSoundInput').addEventListener('change', (e)=>{
 document.getElementById('openingSoundResetBtn').addEventListener('click', ()=>{
   data.openingSound = null;
   data.openingSoundName = null;
-  scheduleSave();
+  saveNow();
   updateOpeningSoundStatus();
 });
 function applyImportedData(parsed, onDone){
