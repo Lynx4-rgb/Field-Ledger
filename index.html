@@ -976,10 +976,70 @@ function getWorkoutActivity(d){
   const day = ensureDay(dateKey(d));
   return day.workoutActivity || WORKOUT_SCHEDULE[weekdayIdx(d)];
 }
+const IDB_NAME = 'FieldLedgerDB';
+const IDB_STORE = 'kv';
+let idbDbPromise = null;
+function openIDB(){
+  if(idbDbPromise) return idbDbPromise;
+  idbDbPromise = new Promise((resolve, reject)=>{
+    if(!window.indexedDB){ reject(new Error('no indexeddb')); return; }
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = (e)=>{
+      const db = e.target.result;
+      if(!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = (e)=> resolve(e.target.result);
+    req.onerror = ()=> reject(req.error);
+  });
+  return idbDbPromise;
+}
+function idbGet(key){
+  return openIDB().then(db=> new Promise((resolve, reject)=>{
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).get(key);
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  }));
+}
+function idbSet(key, value){
+  return openIDB().then(db=> new Promise((resolve, reject)=>{
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(value, key);
+    tx.oncomplete = ()=> resolve(true);
+    tx.onerror = ()=> reject(tx.error);
+  }));
+}
+let didMigrationCheck = false;
+async function migrateLocalStorageToIDB(key){
+  if(didMigrationCheck) return;
+  didMigrationCheck = true;
+  try{
+    const idbVal = await idbGet(key);
+    const localVal = (()=>{ try{ return localStorage.getItem(key); }catch(e){ return null; } })();
+    if(localVal === null) return;
+    if(idbVal === undefined || idbVal === null){
+      await idbSet(key, localVal);
+      return;
+    }
+    // both exist — keep whichever was saved more recently
+    try{
+      const idbData = JSON.parse(idbVal);
+      const localData = JSON.parse(localVal);
+      if((localData.lastModified||0) > (idbData.lastModified||0)){
+        await idbSet(key, localVal);
+      }
+    }catch(e){}
+  }catch(e){ /* IndexedDB unavailable — localStorage fallback below still works */ }
+}
 async function storageGet(key){
   if(window.storage && typeof window.storage.get === 'function'){
-    try{ return await window.storage.get(key); }catch(e){ /* fall through to localStorage */ }
+    try{ return await window.storage.get(key); }catch(e){ /* fall through to IndexedDB/localStorage */ }
   }
+  try{
+    await migrateLocalStorageToIDB(key);
+    const val = await idbGet(key);
+    if(val !== undefined && val !== null) return { value: val };
+  }catch(e){ /* fall through to localStorage */ }
   try{
     const val = localStorage.getItem(key);
     return val === null ? null : { value: val };
@@ -987,9 +1047,12 @@ async function storageGet(key){
 }
 async function storageSet(key, value){
   if(window.storage && typeof window.storage.set === 'function'){
-    try{ await window.storage.set(key, value, false); return true; }catch(e){ /* fall through to localStorage */ }
+    try{ await window.storage.set(key, value, false); return true; }catch(e){ /* fall through */ }
   }
-  try{ localStorage.setItem(key, value); return true; }catch(e){ console.error('local save failed', e); return false; }
+  let idbOk = false;
+  try{ await idbSet(key, value); idbOk = true; }catch(e){ console.error('idb save failed', e); }
+  try{ localStorage.setItem(key, value); }catch(e){ /* localStorage full is fine if IndexedDB succeeded */ }
+  return idbOk;
 }
 let isFirstEverLoad = false;
 async function load(){
