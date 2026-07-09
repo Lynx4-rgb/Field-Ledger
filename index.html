@@ -1047,12 +1047,21 @@ async function storageGet(key){
 }
 async function storageSet(key, value){
   if(window.storage && typeof window.storage.set === 'function'){
-    try{ await window.storage.set(key, value, false); return true; }catch(e){ /* fall through */ }
+    try{ await window.storage.set(key, value, false); return {ok:true}; }catch(e){ /* fall through */ }
   }
-  let idbOk = false;
-  try{ await idbSet(key, value); idbOk = true; }catch(e){ console.error('idb save failed', e); }
-  try{ localStorage.setItem(key, value); }catch(e){ /* localStorage full is fine if IndexedDB succeeded */ }
-  return idbOk;
+  let idbError = null;
+  try{ await idbSet(key, value); return {ok:true}; }catch(e){ idbError = e; console.error('idb save failed', e); }
+  try{ localStorage.setItem(key, value); return {ok:true}; }catch(e){
+    let quotaInfo = '';
+    try{
+      if(navigator.storage && navigator.storage.estimate){
+        const est = await navigator.storage.estimate();
+        quotaInfo = ` [device storage: ${Math.round((est.usage||0)/1024/1024)}MB used of ${Math.round((est.quota||0)/1024/1024)}MB available]`;
+      }
+    }catch(e2){}
+    const detail = (idbError ? idbError.name+': '+idbError.message : 'IndexedDB unavailable') + ' | localStorage: ' + e.name + ': ' + e.message + quotaInfo;
+    return {ok:false, error: detail};
+  }
 }
 let isFirstEverLoad = false;
 async function load(){
@@ -1098,18 +1107,18 @@ function scheduleSave(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async ()=>{
     data.lastModified = Date.now();
-    let ok = false;
-    try{ ok = await storageSet('ledger-data', JSON.stringify(data)); }catch(e){ console.error('save failed', e); }
-    if(!ok) alert('⚠️ Save failed — your device may be out of storage space. If you recently uploaded a large file (like an opening sound or celebration track), try a smaller one, or remove one of your custom sounds in Settings.');
+    let result = {ok:false, error:'unknown'};
+    try{ result = await storageSet('ledger-data', JSON.stringify(data)); }catch(e){ result = {ok:false, error: e.message}; }
+    if(!result.ok) alert('⚠️ Save failed — your device may be out of storage space. If you recently uploaded a large file (like an opening sound or celebration track), try a smaller one, or remove one of your custom sounds in Settings.\n\nTechnical detail: ' + result.error);
     updateMemoryBar();
   }, 350);
 }
 async function saveNow(){
   clearTimeout(saveTimer);
   data.lastModified = Date.now();
-  let ok = false;
-  try{ ok = await storageSet('ledger-data', JSON.stringify(data)); }catch(e){ console.error('save failed', e); }
-  if(!ok) alert('⚠️ Save failed — your device may be out of storage space. If you recently uploaded a large file (like an opening sound or celebration track), try a smaller one, or remove one of your custom sounds in Settings.');
+  let result = {ok:false, error:'unknown'};
+  try{ result = await storageSet('ledger-data', JSON.stringify(data)); }catch(e){ result = {ok:false, error: e.message}; }
+  if(!result.ok) alert('⚠️ Save failed — your device may be out of storage space. If you recently uploaded a large file (like an opening sound or celebration track), try a smaller one, or remove one of your custom sounds in Settings.\n\nTechnical detail: ' + result.error);
   updateMemoryBar();
 }
 let isResetting = false;
@@ -3155,19 +3164,22 @@ function checkForUpdateNotice(){
   }catch(e){}
 }
 let currentlyPlayingAudio = null;
+let activeFadeTimer = null;
 function fadeInAudioElement(audio, duration, targetVolume){
+  clearInterval(activeFadeTimer);
   audio.volume = 0;
   const steps = 30;
   const stepTime = duration/steps;
   let step = 0;
-  const timer = setInterval(()=>{
+  activeFadeTimer = setInterval(()=>{
     step++;
     audio.volume = Math.min(targetVolume, (step/steps)*targetVolume);
-    if(step>=steps) clearInterval(timer);
+    if(step>=steps) clearInterval(activeFadeTimer);
   }, stepTime);
 }
 function fadeOutAndStop(audio, duration){
   if(!audio) return;
+  clearInterval(activeFadeTimer);
   const steps = 20;
   const stepTime = duration/steps;
   const startVol = audio.volume;
@@ -3357,11 +3369,22 @@ document.getElementById('openingSoundInput').addEventListener('change', (e)=>{
   if(!file) return;
   if(file.size > 2.5*1024*1024){ alert('Please use a file under 2.5MB — audio files take up much more room once saved, and this app now warns you clearly if a save fails due to storage limits, but staying under this keeps real headroom for your logged history too.'); e.target.value=''; return; }
   const reader = new FileReader();
-  reader.onload = ()=>{
+  reader.onload = async ()=>{
+    const prevSound = data.openingSound;
+    const prevName = data.openingSoundName;
     data.openingSound = reader.result;
     data.openingSoundName = file.name;
-    saveNow();
     updateOpeningSoundStatus();
+    const result = await storageSet('ledger-data', JSON.stringify({...data, lastModified: Date.now()}));
+    if(result.ok){
+      data.lastModified = Date.now();
+      updateMemoryBar();
+    } else {
+      data.openingSound = prevSound;
+      data.openingSoundName = prevName;
+      updateOpeningSoundStatus();
+      alert('⚠️ This file could not be saved, so it has NOT been kept — your previous setting is still active.\n\nTechnical detail: ' + result.error);
+    }
   };
   reader.readAsDataURL(file);
   e.target.value = '';
@@ -3548,6 +3571,7 @@ function finishWelcome(){
   setTimeout(checkForUpdateNotice, 900);
   if(currentlyPlayingAudio && !currentlyPlayingAudio.paused){
     const audio = currentlyPlayingAudio;
+    clearInterval(activeFadeTimer);
     const duckToVol = Math.max(0, audio.volume*0.35);
     const steps = 15;
     let step = 0;
