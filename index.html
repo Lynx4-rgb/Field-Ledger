@@ -47,6 +47,7 @@
   --t-piano: #6B4C7A;
   --t-water: #6EC1E4;
   --t-housereview: #C4923F;
+  --t-wristx: #7A9CC6;
 }
 body.theme-forest{
   --bg:#0F1A12; --panel:#16231A; --panel-alt:#1C2B20; --ink:#E5EDE2; --muted:#8FA491;
@@ -278,6 +279,12 @@ table.grid th.fill-col, table.grid td.fill-col{ width: 54px; }
 td.rowlabel.today-col{ border-left: 4px solid var(--accent); }
 .group-row{ background: var(--panel-alt); color: var(--accent); letter-spacing:1px; text-transform:uppercase; font-size:9px; font-weight:700;}
 .mcell{ width: 36px; height: 30px; margin: 0 auto; border: 1px solid var(--muted); position:relative; cursor:pointer; font-size: 11px; font-weight:600; display:flex; align-items:center; justify-content:center; color: var(--ink); background-color: var(--panel); background-image: linear-gradient(to top, var(--fillcolor) var(--fillpct), transparent 0); user-select:none; }
+.wristx-cell-wrap{ padding:4px 3px 3px; border:1px dashed var(--border); border-radius:6px; cursor:pointer; transition: border-color .15s ease, background .15s ease; }
+.wristx-cell-wrap .wristx-cell{ width:42px; height:36px; }
+.wristx-cell-wrap:hover{ border-color: var(--accent); background: rgba(196,146,63,0.08); }
+.wristx-cell-wrap.locked{ cursor:not-allowed; opacity:0.5; }
+.wristx-cell-wrap .wristx-cell{ cursor: pointer; }
+.wristx-sublabel{ font-size:8px; color: var(--muted); text-align:center; margin-top:3px; letter-spacing:0.3px; }
 .ts-cell{ width:22px; height:28px; margin:0 auto; border:1px solid var(--muted); cursor:pointer; background:var(--panel); user-select:none; }
 .ts-cell:hover{ border-color: var(--accent); }
 .ts-cell.selected{ background: var(--c-green, #5FA050); border-color: var(--c-green, #5FA050); }
@@ -387,6 +394,8 @@ th.ts-th{ font-size:8.5px; padding:2px 1px; }
 .quickadd button{ background: var(--accent-dim); border:1px solid var(--accent); color: var(--ink); padding: 0 16px; cursor:pointer; font-family: var(--font); letter-spacing:1px; text-transform:uppercase; font-size: 11px; font-weight:700; }
 .quickadd button:hover{ background: var(--accent); color: var(--bg); }
 .toast{ font-size: 11px; color: var(--c-green); margin-bottom: 10px; min-height: 14px; }
+.sync-toast{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--panel); border:1px solid var(--accent); color:var(--ink); padding:10px 18px; border-radius:20px; font-size:12px; font-weight:700; z-index:400; opacity:0; pointer-events:none; transition: opacity .3s ease, transform .3s ease; box-shadow:0 6px 20px rgba(0,0,0,0.5); }
+.sync-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
 .day-timeline{ display:flex; gap:8px; }
 .tl-times{ display:flex; flex-direction:column; width:48px; }
 .tl-times div{ height:30px; font-size:10px; color:var(--muted); display:flex; align-items:center; }
@@ -575,6 +584,7 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
+<div class="sync-toast" id="syncToast"></div>
 <div id="hellWeekBannerWrap" style="display:none;">
   <div class="hellweek-banner">
     <div class="hellweek-marquee">
@@ -667,6 +677,7 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
           <button class="legend-item" data-series="piano"><i style="background:var(--t-piano)"></i>Piano</button>
           <button class="legend-item" data-series="water"><i style="background:var(--t-water)"></i>Water</button>
           <button class="legend-item" data-series="housereview"><i style="background:var(--t-housereview)"></i>House Review</button>
+          <button class="legend-item" data-series="wristx"><i style="background:var(--t-wristx)"></i>Wrist X</button>
           <div class="granular-picker-wrap">
             <button class="legend-item" id="granularPickerBtn">+ Compare Activities ▾</button>
             <div class="granular-picker-panel" id="granularPickerPanel" style="display:none;"></div>
@@ -779,7 +790,7 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
     <div class="hero" id="heroHabits"></div>
     <div class="tab-title">Habits</div>
     <div class="panel-body">
-      <div class="panel-desc">Piano practice (30 min target), drinking water (4 pints), and a daily house review (15 min).</div>
+      <div class="panel-desc">Piano practice (30 min target), drinking water (4 pints), a daily house review (15 min), and Wrist X (weekday strength/mobility check-ins).</div>
       <div style="overflow-x:auto;"><table class="grid" id="habitsTable"></table></div>
     </div>
   </div>
@@ -957,6 +968,23 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
     <h2 style="margin-top:0;">Medals Won</h2>
     <div id="myMedalsList" style="text-align:left;max-height:60vh;overflow-y:auto;"></div>
     <div class="btnrow"><button id="myMedalsClose" class="cancel">Close</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="wristXModal">
+  <div class="modal-card" style="max-width:380px;">
+    <h2 style="margin-top:0;" id="wristXModalTitle">Wrist X</h2>
+    <div id="wristXModalDesc" style="text-align:left; font-size:13px; line-height:1.5; color:var(--ink); margin-bottom:6px;"></div>
+    <div class="btnrow"><button id="wristXModalClose" class="cancel">Close</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="wristXBandUpOverlay">
+  <div class="modal-card" style="max-width:340px; text-align:center;">
+    <div id="wristXBandUpSwatch" style="width:60px;height:60px;border-radius:50%;margin:0 auto 14px;"></div>
+    <h2 style="margin-top:0;" id="wristXBandUpTitle">Band Up!</h2>
+    <p id="wristXBandUpText" style="color:var(--ink);"></p>
+    <div class="btnrow"><button id="wristXBandUpClose">Continue</button></div>
   </div>
 </div>
 
@@ -1151,6 +1179,110 @@ const READING_GROUPS = [
 const ALL_BOOKS = READING_GROUPS.flatMap(g=>g.books);
 const BOOK_COLORS = { 'JND':'#111111', 'JT':'#2657A6', 'JT Jr':'#1F4B2E', 'FER':'#A83232', 'JHS':'#C2A878', 'JSH':'#6B4423', 'BDH':'#722F37' };
 const READING_TARGET = 15, TRAINING_TARGET = 30;
+const WRIST_X_TYPE_BY_DOW = { 1:'Strength', 2:'Mobility', 3:'Strength', 4:'Mobility', 5:'Strength' };
+const WRIST_X_STRENGTH_HTML = `
+  <div style="margin-bottom:10px;">
+    <b>Banded Wrist Extension</b> <span style="color:var(--muted);">(Palm down, curl up)</span><br>
+    <span style="color:var(--c-gold);">2 sets x 8–12 reps</span>
+  </div>
+  <div style="margin-bottom:10px;">
+    <b>Banded Wrist Flexion</b> <span style="color:var(--muted);">(Palm up, curl up)</span><br>
+    <span style="color:var(--c-gold);">2 sets x 8–12 reps</span>
+  </div>
+  <div style="margin-bottom:10px;">
+    <b>Banded Radial/Ulnar Deviation</b> <span style="color:var(--muted);">(Thumb up)</span><br>
+    <span style="color:var(--c-gold);">2 sets x 8–12 reps</span>
+  </div>
+  <div style="font-size:11px; color:var(--muted); margin-top:12px; border-top:1px solid var(--border); padding-top:8px;">
+    Slow tempo throughout — 2s up, 4s down on resistance reps. Stop immediately if you feel sharp or sudden pain.
+  </div>`;
+const WRIST_X_MOBILITY_HTML = `
+  <div style="margin-bottom:10px;">
+    <b>Active Wrist Circles</b> <span style="color:var(--muted);">(Unweighted, slow)</span><br>
+    <span style="color:var(--c-gold);">2 continuous minutes</span>
+  </div>
+  <div style="margin-bottom:10px;">
+    <b>Unweighted Flexion &amp; Extension</b><br>
+    <span style="color:var(--c-gold);">15 slow reps</span>
+  </div>
+  <div style="margin-bottom:10px;">
+    <b>Isometric Band Holds</b> <span style="color:var(--muted);">(Static hold, straight)</span><br>
+    <span style="color:var(--c-gold);">3 holds x 10 secs</span>
+  </div>
+  <div style="font-size:11px; color:var(--muted); margin-top:12px; border-top:1px solid var(--border); padding-top:8px;">
+    Move gently and pain-free throughout. Stop immediately if you feel sharp or sudden pain.
+  </div>`;
+const WRIST_X_EXERCISES_PLACEHOLDER = {
+  1: WRIST_X_STRENGTH_HTML,
+  2: WRIST_X_MOBILITY_HTML,
+  3: WRIST_X_STRENGTH_HTML,
+  4: WRIST_X_MOBILITY_HTML,
+  5: WRIST_X_STRENGTH_HTML
+};
+const WRIST_X_BAND_NAMES = ['yellow','red','green'];
+const WRIST_X_STREAK_NEEDED = [10, 15];
+const WRIST_X_MISS_LIMIT = 3;
+function computeWristXState(){
+  const start = getStartDate();
+  const today = todayMidnight();
+  let band = 0, streak = 0, misses = 0;
+  let d = new Date(start);
+  while(d <= today){
+    const dow = d.getDay();
+    if(dow>=1 && dow<=5){
+      const key = dateKey(d);
+      const day = data.days[key];
+      const done = !!(day && day.wristX);
+      if(done){
+        streak++;
+        misses = 0;
+        if(band < 2 && streak >= WRIST_X_STREAK_NEEDED[band]){
+          band++;
+          streak = 0;
+        }
+      } else {
+        misses++;
+        streak = 0;
+        if(misses >= WRIST_X_MISS_LIMIT && band > 0){
+          band--;
+          misses = 0;
+        }
+      }
+    }
+    d = addDays(d, 1);
+  }
+  return { band, streak, misses };
+}
+function checkWristXBandChange(){
+  const state = computeWristXState();
+  if(typeof data.wristXKnownBand !== 'number') data.wristXKnownBand = state.band;
+  if(state.band > data.wristXKnownBand){
+    data.wristXKnownBand = state.band;
+    scheduleSave();
+    showWristXBandUpEffect(state.band);
+  } else if(state.band !== data.wristXKnownBand){
+    data.wristXKnownBand = state.band;
+  }
+  return state;
+}
+function showWristXBandUpEffect(band){
+  const bandName = WRIST_X_BAND_NAMES[band];
+  const colors = { yellow: '#E3C042', red: '#B3453D', green: '#5FA050' };
+  const messages = {
+    red: "Two solid weeks of Wrist X check-ins — you've moved up to the red band.",
+    green: "Three solid weeks on red — you've moved up to the green band."
+  };
+  document.getElementById('wristXBandUpSwatch').style.background = colors[bandName];
+  document.getElementById('wristXBandUpTitle').textContent = `Wrist X — ${bandName.charAt(0).toUpperCase()+bandName.slice(1)} Band`;
+  document.getElementById('wristXBandUpText').textContent = messages[bandName] || `You've moved up to the ${bandName} band.`;
+  document.getElementById('wristXBandUpOverlay').classList.add('show');
+}
+document.getElementById('wristXBandUpClose').addEventListener('click', ()=>{
+  document.getElementById('wristXBandUpOverlay').classList.remove('show');
+});
+document.getElementById('wristXModalClose').addEventListener('click', ()=>{
+  document.getElementById('wristXModal').classList.remove('show');
+});
 const BOOK_LEVEL_TARGETS = [5, 10, 15];
 const BOOK_LEVEL_STREAK_NEEDED = [33, 66];
 function computeBookLevel(book){
@@ -1328,7 +1460,7 @@ let data = null;
 let weekStart = getWeekStart(new Date());
 let eveningDay = new Date(); eveningDay.setHours(0,0,0,0);
 let saveTimer = null;
-let trendState = { range:'7d', type:'bar', series:{reading:true, training:true, workouts:true, piano:false, water:false, housereview:false}, granular:[] };
+let trendState = { range:'7d', type:'bar', series:{reading:true, training:true, workouts:true, piano:false, water:false, housereview:false, wristx:false}, granular:[] };
 let dashboardEditMode = false;
 
 function getWeekStart(d){ d=new Date(d); const day=d.getDay(); d.setDate(d.getDate()-day); d.setHours(0,0,0,0); return d; }
@@ -1347,11 +1479,12 @@ function currentWeekDates(){ const ws = getWeekStart(new Date()); return Array.f
 
 function defaultData(){
   const today = dateKey(new Date());
-  return { version: 5, createdAt: today, celebrated: {reading:[],training:[],workouts:[]}, days: {}, customTracks: [], challenge: null, lastChallengeOffer: null, bonusXP: 0, celebratedWeeks: [], lastHellWeekVariant: null, userName: null, userAvatar: null, hellWeeksCompleted: 0, bonusXPByMonth: {}, theme: 'default', openingSound: null, openingSoundName: null, muted: false, streakRecords: {}, dashboardTileOrder: [], dashboardBlockOrder: [], lastModified: Date.now(), lastWeeklyReportSent: null, hellWeekCompletionLog: [], emailConfig: { serviceId:'', templateId:'', publicKey:'', recipient:'' }, medalsWon: {}, bookLevels: {}, eveningOverlay: { lastShownDate: null }, lastKnownRankIdx: 0 };
+  return { version: 5, createdAt: today, celebrated: {reading:[],training:[],workouts:[]}, days: {}, customTracks: [], challenge: null, lastChallengeOffer: null, bonusXP: 0, celebratedWeeks: [], lastHellWeekVariant: null, userName: null, userAvatar: null, hellWeeksCompleted: 0, bonusXPByMonth: {}, theme: 'default', openingSound: null, openingSoundName: null, muted: false, streakRecords: {}, dashboardTileOrder: [], dashboardBlockOrder: [], lastModified: Date.now(), lastWeeklyReportSent: null, hellWeekCompletionLog: [], emailConfig: { serviceId:'', templateId:'', publicKey:'', recipient:'' }, medalsWon: {}, bookLevels: {}, eveningOverlay: { lastShownDate: null }, lastKnownRankIdx: 0, wristXKnownBand: 0 };
 }
 function ensureDay(key){
-  if(!data.days[key]) data.days[key] = { reading:{}, training:0, workout:{done:false, note:''}, eveningItems:[], bible:{morning:0,midday:0,night:0}, trainingTopic:null, workoutActivity:null, arrivalSlot:null, piano:0, water:0, houseReview:0, isHoliday:false };
+  if(!data.days[key]) data.days[key] = { reading:{}, training:0, workout:{done:false, note:''}, eveningItems:[], bible:{morning:0,midday:0,night:0}, trainingTopic:null, workoutActivity:null, arrivalSlot:null, piano:0, water:0, houseReview:0, isHoliday:false, wristX:false };
   const day = data.days[key];
+  if(typeof day.wristX !== 'boolean') day.wristX = false;
   if(typeof day.isHoliday !== 'boolean') day.isHoliday = false;
   if(!day.reading) day.reading = {};
   ALL_BOOKS.forEach(b=>{ if(typeof day.reading[b] !== 'number') day.reading[b] = 0; });
@@ -1508,6 +1641,9 @@ async function load(){
       if(typeof data.lastKnownRankIdx !== 'number'){
         data.lastKnownRankIdx = getCurrentRank().idx;
       }
+      if(typeof data.wristXKnownBand !== 'number'){
+        data.wristXKnownBand = computeWristXState().band;
+      }
       if(!data.bibleResetV2Applied){
         const todayKeyStr = dateKey(new Date());
         Object.keys(data.days).forEach(k=>{
@@ -1579,7 +1715,8 @@ function firstEntryDate(){
     const hasPiano = (day.piano||0) > 0;
     const hasWater = (day.water||0) > 0;
     const hasHouseReview = (day.houseReview||0) > 0;
-    if(hasReading || hasTraining || hasWorkout || hasBible || hasTimesheet || hasPiano || hasWater || hasHouseReview){
+    const hasWristX = !!day.wristX;
+    if(hasReading || hasTraining || hasWorkout || hasBible || hasTimesheet || hasPiano || hasWater || hasHouseReview || hasWristX){
       const d = new Date(k+'T00:00:00');
       if(!earliest || d < earliest) earliest = d;
     }
@@ -1702,6 +1839,17 @@ function houseReviewPct(dates){
   dates.forEach(d=>{ const day=ensureDay(dateKey(d)); sum += Math.min(day.houseReview, HOUSE_REVIEW_TARGET); total += HOUSE_REVIEW_TARGET; });
   return total? sum/total : 0;
 }
+function wristXPct(dates){
+  let total=0, hit=0;
+  dates.forEach(d=>{
+    const dow = d.getDay();
+    if(dow<1 || dow>5) return;
+    total++;
+    const day=ensureDay(dateKey(d));
+    if(day.wristX) hit++;
+  });
+  return total? hit/total : 0;
+}
 function combinedPct(dates){
   let weightedSum = 0, totalWeight = 0;
   const add = (weight, pct) => { weightedSum += weight*pct; totalWeight += weight; };
@@ -1713,6 +1861,7 @@ function combinedPct(dates){
   add(0.10, pianoPct(dates));
   add(0.10, waterPct(dates));
   add(0.10, houseReviewPct(dates));
+  if(dates.some(isWeekday)) add(0.10, wristXPct(dates));
   return totalWeight ? weightedSum/totalWeight : 0;
 }
 
@@ -1726,6 +1875,7 @@ function dailyPerfect(d){
   if(pianoPct([d]) < 0.999) return false;
   if(waterPct([d]) < 0.999) return false;
   if(houseReviewPct([d]) < 0.999) return false;
+  if(isWeekday(d) && wristXPct([d]) < 0.999) return false;
   return true;
 }
 function countPerfectDays(){
@@ -2025,6 +2175,18 @@ const MEDALS = [
     check: ()=> bestBibleFullDayStreak() >= 180 },
 ];
 function getMedal(id){ return MEDALS.find(m=>m.id===id); }
+function wristXStreak(){
+  const start = getStartDate(), today = todayMidnight();
+  let best=0, run=0; let d = new Date(start);
+  while(d<=today){
+    if(isWeekday(d)){
+      const day = ensureDay(dateKey(d));
+      if(day.wristX){ run++; best=Math.max(best,run); } else run=0;
+    }
+    d = addDays(d,1);
+  }
+  return { current: run, best };
+}
 function computeStreaks(){
   const entries = [];
   ALL_BOOKS.forEach(b=>{ const s=dailyBookStreak(b); entries.push({label:`Reading — ${b}`, unit:'days', category:'reading', ...s}); });
@@ -2043,6 +2205,8 @@ function computeStreaks(){
   entries.push({label:'Habits — Drinking Water', unit:'days', category:'water', ...waterStreak});
   const hrStreak = dailyFieldStreak(day=> (day.houseReview||0) >= HOUSE_REVIEW_TARGET);
   entries.push({label:'Habits — House Review', unit:'days', category:'housereview', ...hrStreak});
+  const wristXS = wristXStreak();
+  entries.push({label:'Habits — Wrist X', unit:'days', category:'wristx', ...wristXS});
   return entries;
 }
 function activityCompletionRates(){
@@ -2081,6 +2245,9 @@ function activityCompletionRates(){
   { let count=0, hit=0;
     all.forEach(d=>{ count++; if((ensureDay(dateKey(d)).houseReview||0) >= HOUSE_REVIEW_TARGET) hit++; });
     entries.push({ label:'Habits — House Review', pct: count? hit/count:0, count }); }
+  { let count=0, hit=0;
+    all.forEach(d=>{ if(isWeekday(d)){ count++; if(ensureDay(dateKey(d)).wristX) hit++; } });
+    entries.push({ label:'Habits — Wrist X', pct: count? hit/count:0, count }); }
   return entries.filter(e=>e.count>0);
 }
 function computeRecordWeek(){
@@ -2164,6 +2331,7 @@ function granularTrackedItems(){
   items.push({ label: 'Habits — Piano', pct: (dates)=>{ let sum=0,total=0; dates.forEach(d=>{ sum+=Math.min(ensureDay(dateKey(d)).piano||0, PIANO_DAILY_TARGET); total+=PIANO_DAILY_TARGET; }); return total?sum/total:0; } });
   items.push({ label: 'Habits — Drinking Water', pct: (dates)=>{ let sum=0,total=0; dates.forEach(d=>{ sum+=Math.min(ensureDay(dateKey(d)).water||0, WATER_TARGET); total+=WATER_TARGET; }); return total?sum/total:0; } });
   items.push({ label: 'Habits — House Review', pct: (dates)=>{ let sum=0,total=0; dates.forEach(d=>{ sum+=Math.min(ensureDay(dateKey(d)).houseReview||0, HOUSE_REVIEW_TARGET); total+=HOUSE_REVIEW_TARGET; }); return total?sum/total:0; } });
+  items.push({ label: 'Habits — Wrist X', pct: (dates)=> wristXPct(dates) });
   return items;
 }
 function formatStreakCount(n, unit){
@@ -2172,7 +2340,7 @@ function formatStreakCount(n, unit){
 }
 function checkStreakRecords(category){
   if(!data.streakRecords) data.streakRecords = {};
-  const catLabelMap = {reading:'Reading', bible:'Bible', training:'Learning', workouts:'Workouts', timesheet:'Timesheet', piano:'Habits', water:'Habits', housereview:'Habits'};
+  const catLabelMap = {reading:'Reading', bible:'Bible', training:'Learning', workouts:'Workouts', timesheet:'Timesheet', piano:'Habits', water:'Habits', housereview:'Habits', wristx:'Habits'};
   const entries = computeStreaks().filter(e=> e.category===category && e.best>=2 && e.current===e.best);
   entries.forEach(s=>{
     const prevBest = data.streakRecords[s.label] || 0;
@@ -2267,8 +2435,8 @@ function renderStreaks(){
   const barsEl = document.getElementById('streakBars');
   const tilesEl = document.getElementById('statTiles');
   const allStreaks = computeStreaks().filter(e=>e.best>0);
-  const catLabel = {reading:'Reading', bible:'Bible', training:'Learning', workouts:'Workouts', timesheet:'Timesheet', piano:'Habits', water:'Habits', housereview:'Habits'};
-  const streaks = ['reading','bible','training','workouts','timesheet','piano','water','housereview'].map(cat=>{
+  const catLabel = {reading:'Reading', bible:'Bible', training:'Learning', workouts:'Workouts', timesheet:'Timesheet', piano:'Habits', water:'Habits', housereview:'Habits', wristx:'Habits'};
+  const streaks = ['reading','bible','training','workouts','timesheet','piano','water','housereview','wristx'].map(cat=>{
     const inCat = allStreaks.filter(e=>e.category===cat);
     if(!inCat.length) return null;
     inCat.sort((a,b)=> (b.current-a.current) || (b.best-a.best));
@@ -4148,7 +4316,10 @@ function renderTimesheet(){
 function renderHabits(){
   const dates = weekDates();
   const table = document.getElementById('habitsTable');
-  let html = '<tr><th style="text-align:left;">Day</th><th>Piano</th><th>Water (4 pints)</th><th>House Review (15m)</th></tr>';
+  const wristXState = checkWristXBandChange();
+  const bandName = WRIST_X_BAND_NAMES[wristXState.band];
+  const bandColors = { yellow: '#E3C042', red: '#B3453D', green: '#5FA050' };
+  let html = '<tr><th style="text-align:left;">Day</th><th>Piano</th><th>Water (4 pints)</th><th>House Review (15m)</th><th>WRIST X</th></tr>';
   dates.forEach(d=>{
     const key = dateKey(d);
     const day = ensureDay(key);
@@ -4161,15 +4332,44 @@ function renderHabits(){
     html += `<td class="${isToday(d)?'today-col':''}"><div class="mcell${day.water>=WATER_TARGET?' full':''}${locked?' locked':''}" style="--fillpct:${Math.round(waterPctVal*100)}%; --fillcolor:${waterColor};" data-key="${key}" data-field="water">${locked?'—':day.water}</div></td>`;
     const hrPctVal = day.houseReview / HOUSE_REVIEW_TARGET;
     html += `<td class="${isToday(d)?'today-col':''}"><div class="mcell${day.houseReview>=HOUSE_REVIEW_TARGET?' full':''}${locked?' locked':''}" style="--fillpct:${Math.round(hrPctVal*100)}%; --fillcolor:${pctColor(hrPctVal)};" data-key="${key}" data-field="houseReview">${locked?'—':day.houseReview}</div></td>`;
+    const dow = d.getDay();
+    const isRestDay = (dow===0 || dow===6);
+    if(isRestDay){
+      html += `<td class="${isToday(d)?'today-col':''}"><div class="mcell locked wristx-cell" style="--fillcolor:var(--muted);">—</div></td>`;
+    } else {
+      const exType = WRIST_X_TYPE_BY_DOW[dow];
+      html += `<td class="${isToday(d)?'today-col':''}">
+        <div class="wristx-cell-wrap${locked?' locked':''}" data-key="${key}" data-dow="${dow}">
+          <div class="mcell wristx-cell ${day.wristX?'full':''}${locked?' locked':''}" style="--fillcolor:${day.wristX?'#5FA050':'transparent'}; --fillpct:${day.wristX?'100%':'0%'}; border-top:3px solid ${bandColors[bandName]};" data-key="${key}">${locked?'—':(day.wristX?'✓':'')}</div>
+          <div class="wristx-sublabel">${exType}</div>
+        </div>
+      </td>`;
+    }
     html += '</tr>';
   });
   const weeklyPianoMins = dates.reduce((s,d)=> s + (ensureDay(dateKey(d)).piano||0), 0);
   const weeklyPianoPct = pianoWeeklyPct(dates);
   html += `<tr><td class="rowlabel" style="font-weight:700;">Week Total</td>
     <td><div class="mcell" style="--fillpct:${Math.round(weeklyPianoPct*100)}%; --fillcolor:${pctColor(weeklyPianoPct)}; font-size:10px;">${Math.round(weeklyPianoPct*100)}%</div></td>
-    <td></td><td></td></tr>`;
+    <td></td><td></td><td></td></tr>`;
   table.innerHTML = html;
-  table.querySelectorAll('.mcell:not(.locked)').forEach(el=>{
+  table.querySelectorAll('.wristx-cell-wrap:not(.locked)').forEach(wrap=>{
+    const checkboxEl = wrap.querySelector('.wristx-cell');
+    wrap.addEventListener('click', (e)=>{
+      if(checkboxEl.contains(e.target)){
+        const day = ensureDay(checkboxEl.dataset.key);
+        day.wristX = !day.wristX;
+        scheduleSave(); renderHabits(); renderTabPcts(); renderDashboard(); updateTodayKpiWidget();
+        return;
+      }
+      const dow = parseInt(wrap.dataset.dow);
+      const exType = WRIST_X_TYPE_BY_DOW[dow];
+      document.getElementById('wristXModalTitle').textContent = `Wrist X — ${DAY_LABELS_FULL[dow]} (${exType})`;
+      document.getElementById('wristXModalDesc').innerHTML = WRIST_X_EXERCISES_PLACEHOLDER[dow];
+      document.getElementById('wristXModal').classList.add('show');
+    });
+  });
+  table.querySelectorAll('.mcell:not(.locked):not(.wristx-cell)').forEach(el=>{
     el.addEventListener('click', ()=>{
       const day = ensureDay(el.dataset.key);
       const field = el.dataset.field;
@@ -4444,7 +4644,7 @@ function renderDashboard(){
     {key:'training', name:'Weekly Learning', fn: trainingPct},
     {key:'workouts', name:'Workouts', fn: workoutPct},
   ];
-  const catColor = {reading:'var(--t-reading)', bible:'var(--t-bible)', training:'var(--t-training)', workouts:'var(--t-workouts)', timesheet:'var(--t-timesheet)', piano:'var(--t-piano)', water:'var(--t-water)', housereview:'var(--t-housereview)'};
+  const catColor = {reading:'var(--t-reading)', bible:'var(--t-bible)', training:'var(--t-training)', workouts:'var(--t-workouts)', timesheet:'var(--t-timesheet)', piano:'var(--t-piano)', water:'var(--t-water)', housereview:'var(--t-housereview)', wristx:'var(--t-wristx)'};
 
   document.getElementById('kpiGrid').innerHTML = cats.map(c=>{
     const vw = c.fn(wtd), vm = c.fn(mtd), va = c.fn(all);
@@ -4493,7 +4693,7 @@ function getTrendSeries(range){
   const selected = selectedGranularItems();
   if(range === '365d'){
     return monthsBack(12).map(m=>{
-      const point = { label:m.label, reading:readingPct(m.dates), training:trainingPct(m.dates), workouts:workoutPct(m.dates), piano:avgRawPerDay(m.dates,'piano'), water:avgRawPerDay(m.dates,'water'), housereview:avgRawPerDay(m.dates,'houseReview') };
+      const point = { label:m.label, reading:readingPct(m.dates), training:trainingPct(m.dates), workouts:workoutPct(m.dates), piano:avgRawPerDay(m.dates,'piano'), water:avgRawPerDay(m.dates,'water'), housereview:avgRawPerDay(m.dates,'houseReview'), wristx:wristXPct(m.dates) };
       selected.forEach(g=> point[g.label] = g.pct(m.dates));
       return point;
     });
@@ -4501,7 +4701,7 @@ function getTrendSeries(range){
   if(range === 'all'){
     const n = monthsSinceStart();
     return monthsBack(n, n>12).map(m=>{
-      const point = { label:m.label, reading:readingPct(m.dates), training:trainingPct(m.dates), workouts:workoutPct(m.dates), piano:avgRawPerDay(m.dates,'piano'), water:avgRawPerDay(m.dates,'water'), housereview:avgRawPerDay(m.dates,'houseReview') };
+      const point = { label:m.label, reading:readingPct(m.dates), training:trainingPct(m.dates), workouts:workoutPct(m.dates), piano:avgRawPerDay(m.dates,'piano'), water:avgRawPerDay(m.dates,'water'), housereview:avgRawPerDay(m.dates,'houseReview'), wristx:wristXPct(m.dates) };
       selected.forEach(g=> point[g.label] = g.pct(m.dates));
       return point;
     });
@@ -4512,7 +4712,8 @@ function getTrendSeries(range){
     const point = {
       label: n===7 ? DAY_LABELS[weekdayIdx(d)] : (n>15 && i%5!==0 && i!==n-1 ? '' : String(d.getDate())),
       reading: readingPct([d]), training: trainingPct([d]), workouts: workoutPct([d]),
-      piano: ensureDay(dateKey(d)).piano||0, water: ensureDay(dateKey(d)).water||0, housereview: ensureDay(dateKey(d)).houseReview||0
+      piano: ensureDay(dateKey(d)).piano||0, water: ensureDay(dateKey(d)).water||0, housereview: ensureDay(dateKey(d)).houseReview||0,
+      wristx: wristXPct([d])
     };
     selected.forEach(g=> point[g.label] = g.pct([d]));
     return point;
@@ -4523,9 +4724,9 @@ function renderTrendChart(){
   const w = 700, h=220, padL=32,padR=10,padT=10,padB=26;
   const innerW = w-padL-padR, innerH = h-padT-padB;
   const n = points.length;
-  const pctKeys = ['reading','training','workouts'].filter(k=> trendState.series[k]);
+  const pctKeys = ['reading','training','workouts','wristx'].filter(k=> trendState.series[k]);
   const unitKeys = ['piano','water','housereview'].filter(k=> trendState.series[k]);
-  const colors = {reading:'var(--t-reading)', training:'var(--t-training)', workouts:'var(--t-workouts)', piano:'var(--t-piano)', water:'var(--t-water)', housereview:'var(--t-housereview)'};
+  const colors = {reading:'var(--t-reading)', training:'var(--t-training)', workouts:'var(--t-workouts)', piano:'var(--t-piano)', water:'var(--t-water)', housereview:'var(--t-housereview)', wristx:'var(--t-wristx)'};
   const selected = selectedGranularItems();
   const unitTargets = { water: WATER_TARGET, housereview: HOUSE_REVIEW_TARGET };
   const isUnitMode = unitKeys.length > 0;
@@ -5216,12 +5417,29 @@ async function githubCloudPull(){
     return { ok:true, data: parsed };
   }catch(e){ return { ok:false, error: friendlyFetchError(e) }; }
 }
+function showSyncToast(msg){
+  const el = document.getElementById('syncToast');
+  if(!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(showSyncToast._t);
+  showSyncToast._t = setTimeout(()=> el.classList.remove('show'), 4000);
+}
 async function checkAndAutoPullIfNewer(){
   const cfg = getGithubConfig();
-  if(!cfg.username || !cfg.repo || !cfg.token) return;
+  const statusEl = document.getElementById('ghAutoPushStatus');
+  if(!cfg.username || !cfg.repo || !cfg.token){
+    console.warn('Auto-pull skipped: GitHub sync is not configured on this device. Open Settings and enter your username, repo, and token here too — sync details are per-browser, not shared automatically from your other devices.');
+    if(statusEl) statusEl.textContent = 'Auto-pull on open: not configured on this device — enter your GitHub details above.';
+    return;
+  }
   try{
     const result = await githubCloudPull();
-    if(!result.ok) return;
+    if(!result.ok){
+      console.error('Auto-pull check failed:', result.error);
+      if(statusEl) statusEl.textContent = `Auto-pull on open: last check failed — ${result.error}`;
+      return;
+    }
     const remoteModified = result.data.lastModified || 0;
     const localModified = data.lastModified || 0;
     if(remoteModified > localModified){
@@ -5229,8 +5447,15 @@ async function checkAndAutoPullIfNewer(){
       await saveNow();
       applyTheme();
       render();
+      showSyncToast('✓ Synced newer progress from GitHub');
+      if(statusEl) statusEl.textContent = `Auto-pull on open: pulled a newer version at ${new Date().toLocaleTimeString()}.`;
+    } else {
+      if(statusEl) statusEl.textContent = `Auto-pull on open: checked at ${new Date().toLocaleTimeString()} — this device already has the latest.`;
     }
-  }catch(e){ console.error('auto-pull check failed', e); }
+  }catch(e){
+    console.error('auto-pull check failed', e);
+    if(statusEl) statusEl.textContent = `Auto-pull on open: last check failed — ${e.message}`;
+  }
 }
 let autoPushInterval = null;
 function startAutoPush(){
