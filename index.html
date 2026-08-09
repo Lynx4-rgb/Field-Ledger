@@ -1081,6 +1081,7 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
     <div class="memory-bar-track" id="ghPushProgressTrack" style="display:none;margin-top:8px;"><div class="memory-bar-fill" id="ghPushProgressFill" style="width:0%;"></div></div>
     <div id="ghSyncStatus" style="font-size:10px;color:var(--muted);margin-top:6px;"></div>
     <div id="ghAutoPushStatus" style="font-size:9px;color:var(--muted);margin-top:4px;opacity:0.75;"></div>
+    <div id="ghAutoPullStatus" style="font-size:9px;color:var(--muted);margin-top:4px;opacity:0.75;"></div>
     <div class="settings-label">Weekly Email Report</div>
     <p style="font-size:10px;color:var(--muted);margin-top:0;">Sends a summary of your weekly averages — Reading Ministry, Reading Bible, Learning, and Workouts — after 10pm each Saturday, the next time you open the app. Needs a free EmailJS account (emailjs.com) connected to your Gmail — paste the 3 values from your EmailJS dashboard below, once.</p>
     <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -5427,7 +5428,7 @@ function showSyncToast(msg){
 }
 async function checkAndAutoPullIfNewer(){
   const cfg = getGithubConfig();
-  const statusEl = document.getElementById('ghAutoPushStatus');
+  const statusEl = document.getElementById('ghAutoPullStatus');
   if(!cfg.username || !cfg.repo || !cfg.token){
     console.warn('Auto-pull skipped: GitHub sync is not configured on this device. Open Settings and enter your username, repo, and token here too — sync details are per-browser, not shared automatically from your other devices.');
     if(statusEl) statusEl.textContent = 'Auto-pull on open: not configured on this device — enter your GitHub details above.';
