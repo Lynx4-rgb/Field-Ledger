@@ -187,7 +187,7 @@ body{ margin:0; background: var(--bg); color: var(--ink); font-family: var(--fon
 .rank-caption{ text-align:center; font-size:10px; color:var(--muted); margin-top:10px; }
 .streaks-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(170px,1fr)); gap:10px; }
 .streak-bars{ display:flex; flex-direction:column; gap:14px; margin-bottom:20px; }
-.streak-bar-row{ display:grid; grid-template-columns: 140px 1fr 78px; align-items:center; gap:12px; }
+.streak-bar-row{ display:grid; grid-template-columns: 140px 1fr; align-items:center; gap:12px; }
 .streak-bar-label{ font-size:11px; color: var(--ink); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .streak-bar-track-wrap{ display:flex; align-items:center; gap:6px; }
 .streak-bar-track{ position:relative; height:14px; background: rgba(255,255,255,0.18); border-radius:7px; overflow:visible; flex:1 1 auto; min-width:0; }
@@ -1687,6 +1687,13 @@ async function saveNow(){
   if(!result.ok) alert('⚠️ Save failed — your device may be out of storage space. If you recently uploaded a large file (like an opening sound or celebration track), try a smaller one, or remove one of your custom sounds in Settings.\n\nTechnical detail: ' + result.error);
   updateMemoryBar();
 }
+async function savePulledDataPreservingTimestamp(){
+  clearTimeout(saveTimer);
+  let result = {ok:false, error:'unknown'};
+  try{ result = await storageSet('ledger-data', JSON.stringify(data)); }catch(e){ result = {ok:false, error: e.message}; }
+  if(!result.ok) alert('⚠️ Save failed — your device may be out of storage space. If you recently uploaded a large file (like an opening sound or celebration track), try a smaller one, or remove one of your custom sounds in Settings.\n\nTechnical detail: ' + result.error);
+  updateMemoryBar();
+}
 let isResetting = false;
 window.addEventListener('beforeunload', ()=>{
   if(isResetting) return;
@@ -1740,7 +1747,7 @@ function monthToDateDates(){
 /* ---------- Stats (KPIs: Reading / Training / Workouts) ---------- */
 function readingMinistryPct(dates){
   let sum=0,total=0;
-  dates.forEach(d=>{ const day=ensureDay(dateKey(d)); ALL_BOOKS.forEach(b=> sum += day.reading[b]); total += ALL_BOOKS.length*READING_TARGET; });
+  dates.forEach(d=>{ const day=ensureDay(dateKey(d)); ALL_BOOKS.forEach(b=>{ const target=getBookTarget(b); sum += Math.min(day.reading[b], target); total += target; }); });
   return total? sum/total : 0;
 }
 function bibleTargets(d){
@@ -2029,36 +2036,52 @@ function dailyBookStreak(book){
   let best=0, run=0; let d = new Date(start);
   while(d<=today){
     const day = ensureDay(dateKey(d));
-    if(day.reading[book] >= READING_TARGET){ run++; best=Math.max(best,run); } else run=0;
+    if(day.reading[book] >= getBookTarget(book)){ run++; best=Math.max(best,run); } else run=0;
     d = addDays(d,1);
   }
   return { current: run, best };
 }
 function weeklyTrainingStreak(idx){
+  const targetTopic = TRAINING_SCHEDULE[idx];
   const start = getStartDate(), today = todayMidnight();
-  let d = new Date(start);
-  while(d.getDay() !== idx && d<=today) d = addDays(d,1);
+  let weekStart = getWeekStart(start);
   let best=0, run=0;
-  while(d<=today){
-    const day = ensureDay(dateKey(d));
-    if(day.training >= TRAINING_TARGET){ run++; best=Math.max(best,run); } else run=0;
-    d = addDays(d,7);
+  while(weekStart <= today){
+    const scheduledDay = addDays(weekStart, idx);
+    if(scheduledDay > today){ weekStart = addDays(weekStart,7); break; }
+    const weekDates = Array.from({length:7}, (_,i)=> addDays(weekStart,i)).filter(d=> d<=today);
+    let done = false;
+    weekDates.forEach(d=>{
+      if(getTrainingTopic(d) === targetTopic){
+        const day = ensureDay(dateKey(d));
+        if(day.training >= TRAINING_TARGET) done = true;
+      }
+    });
+    if(done){ run++; best=Math.max(best,run); } else run=0;
+    weekStart = addDays(weekStart,7);
   }
   return { current: run, best };
 }
 function weeklyWorkoutStreak(idx){
+  const targetActivity = WORKOUT_SCHEDULE[idx];
   const start = getStartDate(), today = todayMidnight();
-  let d = new Date(start);
-  while(d.getDay() !== idx && d<=today) d = addDays(d,1);
+  let weekStart = getWeekStart(start);
   let best=0, run=0;
-  while(d<=today){
-    if(isInAcceptedHellWeek(d)){ d = addDays(d,7); continue; }
-    const activity = getWorkoutActivity(d);
-    if(activity !== 'Off Duty'){
-      const day = ensureDay(dateKey(d));
-      if(day.workout && day.workout.done){ run++; best=Math.max(best,run); } else run=0;
-    }
-    d = addDays(d,7);
+  while(weekStart <= today){
+    const scheduledDay = addDays(weekStart, idx);
+    if(scheduledDay > today){ weekStart = addDays(weekStart,7); break; }
+    const weekDates = Array.from({length:7}, (_,i)=> addDays(weekStart,i)).filter(d=> d<=today);
+    if(weekDates.some(d=> isInAcceptedHellWeek(d))){ weekStart = addDays(weekStart,7); continue; }
+    if(targetActivity === 'Off Duty'){ weekStart = addDays(weekStart,7); continue; }
+    let done = false;
+    weekDates.forEach(d=>{
+      if(getWorkoutActivity(d) === targetActivity){
+        const day = ensureDay(dateKey(d));
+        if(day.workout && day.workout.done) done = true;
+      }
+    });
+    if(done){ run++; best=Math.max(best,run); } else run=0;
+    weekStart = addDays(weekStart,7);
   }
   return { current: run, best };
 }
@@ -2082,7 +2105,7 @@ function bestBibleFullDayStreak(){
   }).best;
 }
 function bestReadingAllBooksStreak(){
-  return dailyFieldStreak(day => ALL_BOOKS.every(b => (day.reading[b]||0) >= READING_TARGET)).best;
+  return dailyFieldStreak(day => ALL_BOOKS.every(b => (day.reading[b]||0) >= getBookTarget(b))).best;
 }
 function bestWorkoutActivityStreak(){
   let best = 0;
@@ -2215,7 +2238,7 @@ function activityCompletionRates(){
   const entries = [];
   ALL_BOOKS.forEach(b=>{
     let count=0, hit=0;
-    all.forEach(d=>{ count++; if(ensureDay(dateKey(d)).reading[b] >= READING_TARGET) hit++; });
+    all.forEach(d=>{ count++; if(ensureDay(dateKey(d)).reading[b] >= getBookTarget(b)) hit++; });
     entries.push({ label:`Reading — ${b}`, pct: count? hit/count:0, count });
   });
   ['morning','midday','night'].forEach(slot=>{
@@ -2225,14 +2248,16 @@ function activityCompletionRates(){
     entries.push({ label:`Bible — ${label}`, pct: count? hit/count:0, count });
   });
   [1,2,3,4,5].forEach(idx=>{
+    const targetTopic = TRAINING_SCHEDULE[idx];
     let count=0, hit=0;
-    all.forEach(d=>{ if(weekdayIdx(d)===idx){ count++; if(ensureDay(dateKey(d)).training >= TRAINING_TARGET) hit++; } });
-    entries.push({ label:`Learning — ${TRAINING_SCHEDULE[idx]}`, pct: count? hit/count:0, count });
+    all.forEach(d=>{ if(getTrainingTopic(d)===targetTopic){ count++; if(ensureDay(dateKey(d)).training >= TRAINING_TARGET) hit++; } });
+    entries.push({ label:`Learning — ${targetTopic}`, pct: count? hit/count:0, count });
   });
   [0,1,2,3,4,6].forEach(idx=>{
+    const targetActivity = WORKOUT_SCHEDULE[idx];
     let count=0, hit=0;
-    all.forEach(d=>{ if(weekdayIdx(d)===idx){ count++; if(ensureDay(dateKey(d)).workout.done) hit++; } });
-    entries.push({ label:`${DAY_LABELS_FULL[idx]} — ${WORKOUT_SCHEDULE[idx]}`, pct: count? hit/count:0, count });
+    all.forEach(d=>{ if(getWorkoutActivity(d)===targetActivity){ count++; if(ensureDay(dateKey(d)).workout.done) hit++; } });
+    entries.push({ label:`${DAY_LABELS_FULL[idx]} — ${targetActivity}`, pct: count? hit/count:0, count });
   });
   { let count=0, hit=0;
     all.forEach(d=>{ if(isWeekday(d)){ count++; if(timesheetSlotHitsTarget(ensureDay(dateKey(d)).arrivalSlot)) hit++; } });
@@ -2314,7 +2339,7 @@ function bestRecentWorkoutInsight(){
 function granularTrackedItems(){
   const items = [];
   ALL_BOOKS.forEach(b=>{
-    items.push({ label: `Reading — ${b}`, pct: (dates)=>{ let sum=0,total=0; dates.forEach(d=>{ sum+=ensureDay(dateKey(d)).reading[b]; total+=READING_TARGET; }); return total?sum/total:0; } });
+    items.push({ label: `Reading — ${b}`, pct: (dates)=>{ let sum=0,total=0; const target=getBookTarget(b); dates.forEach(d=>{ sum+=Math.min(ensureDay(dateKey(d)).reading[b],target); total+=target; }); return total?sum/total:0; } });
   });
   ['morning','midday','night'].forEach(slot=>{
     const label = slot==='morning'?'Morning':slot==='midday'?'Midday / Evening':'Night';
@@ -2368,7 +2393,6 @@ function celebrateNewRecord(s, catLabel){
         </div>
         <span class="streak-bar-end-badge">${s.current}/${s.best}</span>
       </div>
-      <div class="streak-bar-nums">${formatStreakCount(s.current, s.unit)}</div>
     </div>`;
   document.body.appendChild(el);
   setTimeout(()=> el.remove(), 3200);
@@ -2458,7 +2482,6 @@ function renderStreaks(){
           </div>
           <span class="streak-bar-end-badge">${s.current}/${s.best}</span>
         </div>
-        <div class="streak-bar-nums">${formatStreakCount(s.current, s.unit)}</div>
       </div>`;
     }).join('');
   }
@@ -2813,7 +2836,7 @@ function generateContextualAdvice(){
   }
   const groupPcts = READING_GROUPS.map(g=>{
     let sum=0,total=0;
-    day7.forEach(d=>{ const day=ensureDay(dateKey(d)); g.books.forEach(b=>{ sum+=day.reading[b]; total+=READING_TARGET; }); });
+    day7.forEach(d=>{ const day=ensureDay(dateKey(d)); g.books.forEach(b=>{ const target=getBookTarget(b); sum+=Math.min(day.reading[b],target); total+=target; }); });
     return { label:g.label, pct: total ? Math.round(sum/total*100) : 0 };
   }).sort((a,b)=>b.pct-a.pct);
   if(groupPcts[0].pct - groupPcts[groupPcts.length-1].pct >= 30){
@@ -3014,7 +3037,7 @@ function buildContextualCandidates(tabKey){
   // Reading sub-group balance (Morning/Midday/Night)
   const groupPcts = READING_GROUPS.map(g=>{
     let sum=0,total=0;
-    mtd.forEach(d=>{ const day=ensureDay(dateKey(d)); g.books.forEach(b=>{ sum+=day.reading[b]; total+=READING_TARGET; }); });
+    mtd.forEach(d=>{ const day=ensureDay(dateKey(d)); g.books.forEach(b=>{ const target=getBookTarget(b); sum+=Math.min(day.reading[b],target); total+=target; }); });
     return { label:g.label, pct: total ? Math.round(sum/total*100) : 0 };
   }).sort((a,b)=>b.pct-a.pct);
   if(groupPcts[0].pct - groupPcts[groupPcts.length-1].pct >= 20){
@@ -3070,7 +3093,7 @@ function buildContextualCandidates(tabKey){
 
   // Specific best/worst book, all-time
   const bookRatesAll = ALL_BOOKS.map(b=>{
-    let sum=0,total=0; all.forEach(d=>{ sum+=ensureDay(dateKey(d)).reading[b]; total+=READING_TARGET; });
+    let sum=0,total=0; const target=getBookTarget(b); all.forEach(d=>{ sum+=Math.min(ensureDay(dateKey(d)).reading[b],target); total+=target; });
     return { book:b, pct: total?sum/total:0 };
   });
   if(bookRatesAll.some(r=>r.pct>0)){
@@ -3144,8 +3167,8 @@ function buildContextualCandidates(tabKey){
   }
 
   // Weekend vs weekday reading balance
-  const weekendReadingPct = (()=>{ let sum=0,total=0; mtd.forEach(d=>{ if(!isWeekday(d)){ const day=ensureDay(dateKey(d)); ALL_BOOKS.forEach(b=>{sum+=day.reading[b]; total+=READING_TARGET;}); } }); return total?sum/total:null; })();
-  const weekdayReadingPct = (()=>{ let sum=0,total=0; mtd.forEach(d=>{ if(isWeekday(d)){ const day=ensureDay(dateKey(d)); ALL_BOOKS.forEach(b=>{sum+=day.reading[b]; total+=READING_TARGET;}); } }); return total?sum/total:null; })();
+  const weekendReadingPct = (()=>{ let sum=0,total=0; mtd.forEach(d=>{ if(!isWeekday(d)){ const day=ensureDay(dateKey(d)); ALL_BOOKS.forEach(b=>{const target=getBookTarget(b); sum+=Math.min(day.reading[b],target); total+=target;}); } }); return total?sum/total:null; })();
+  const weekdayReadingPct = (()=>{ let sum=0,total=0; mtd.forEach(d=>{ if(isWeekday(d)){ const day=ensureDay(dateKey(d)); ALL_BOOKS.forEach(b=>{const target=getBookTarget(b); sum+=Math.min(day.reading[b],target); total+=target;}); } }); return total?sum/total:null; })();
   if(weekendReadingPct!==null && weekdayReadingPct!==null && Math.abs(weekendReadingPct-weekdayReadingPct)>=0.25){
     candidates.push(weekendReadingPct>weekdayReadingPct
       ? `Your reading is stronger on Saturdays and Lordsdays than on weekdays. The weekday routine could learn something from the weekend.`
@@ -4196,9 +4219,6 @@ function renderTimesheetStreaks(){
   const s = computeTimesheetStreak();
   const el = document.getElementById('timesheetStreakBars');
   const pct = s.best > 0 ? Math.min(1, s.current/Math.max(s.best,1)) : 0;
-  const numsBlock = s.frozen
-    ? `<div class="streak-bar-nums-frozen"><div class="streak-bar-num">${formatStreakCount(s.current,'days')}</div><div class="streak-freeze-label">Streak freeze</div></div>`
-    : `<div class="streak-bar-num">${formatStreakCount(s.current,'days')}</div>`;
   el.innerHTML = `
     <div class="streak-bar-row">
       <div class="streak-bar-label">In by 6am</div>
@@ -4209,7 +4229,7 @@ function renderTimesheetStreaks(){
         </div>
         <span class="streak-bar-end-badge">${formatStreakCount(s.current,'days')} / ${formatStreakCount(s.best,'days')}</span>
       </div>
-      ${numsBlock}
+      ${s.frozen ? '<div class="streak-freeze-label" style="text-align:right;grid-column:1 / -1;">Streak freeze</div>' : ''}
     </div>`;
 }
 const TIMESHEET_ALL_SLOTS = ['early', ...TIMESHEET_SLOTS, 'late'];
@@ -5445,7 +5465,7 @@ async function checkAndAutoPullIfNewer(){
     const localModified = data.lastModified || 0;
     if(remoteModified > localModified){
       data = result.data;
-      await saveNow();
+      await savePulledDataPreservingTimestamp();
       applyTheme();
       render();
       showSyncToast('✓ Synced newer progress from GitHub');
@@ -5514,7 +5534,7 @@ document.getElementById('ghPullBtn').addEventListener('click', async ()=>{
     document.getElementById('settingsModal').classList.remove('show');
     showConfirm('This will replace progress on THIS device with the version pulled from GitHub. Continue?', ()=>{
       data = result.data;
-      saveNow();
+      savePulledDataPreservingTimestamp();
       applyTheme();
       render();
     });
@@ -5774,7 +5794,7 @@ async function handleWelcomePull(btn){
   btn.textContent = originalText; btn.disabled = false;
   if(result.ok){
     data = result.data;
-    await saveNow();
+    await savePulledDataPreservingTimestamp();
     applyTheme();
     render();
     document.getElementById('welcomeFirstTime').style.display = 'none';
