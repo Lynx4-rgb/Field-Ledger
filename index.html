@@ -696,6 +696,15 @@ footer{ text-align:center; color: var(--muted); font-size: 10px; letter-spacing:
 }
 </style>
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{
+      // Fails silently if sw.js isn't hosted alongside this file, or if opened via file://
+    });
+  });
+}
+</script>
 </head>
 <body>
 <div class="sync-toast" id="syncToast"></div>
