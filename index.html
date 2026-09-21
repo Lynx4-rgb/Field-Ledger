@@ -372,6 +372,9 @@ th.ts-th{ font-size:8.5px; padding:2px 1px; }
 .drag-handle{ cursor: pointer; user-select: none; }
 .train-row.drag-target, .wk-row.drag-target{ outline: 2px dashed var(--accent); }
 .train-row.tap-selected, .wk-row.tap-selected{ outline: 3px solid var(--c-gold); outline-offset:2px; }
+.wk-segment.tap-selected{ outline: 3px solid var(--c-gold); outline-offset:-2px; background: rgba(196,146,63,0.12); }
+.hellweek-swap-handle.tap-selected{ outline: 3px solid var(--c-gold); outline-offset:2px; border-radius:3px; }
+.wk-segment, .wk-segment-dash{ cursor:pointer; }
 .activity-select, .topic-select{ flex:1; min-width:0; background: var(--panel); border:1px solid var(--border); color: var(--ink); font-family: var(--font); font-size:12px; padding:6px 8px; margin-left:10px; border-radius:2px; }
 .activity-select:hover, .topic-select:hover{ border-color: var(--accent); }
 .note-slot{ display:flex; align-items:center; gap:6px; flex-shrink:0; min-width:0; position:relative; }
@@ -879,7 +882,7 @@ if('serviceWorker' in navigator){
     <div class="tab-title" id="workoutsTabTitle">Workouts</div>
     <div class="panel-body">
       <div class="panel-toolbar"><button class="clear-btn event-btn-blue" id="eventEditBtn" style="margin-right:10px;display:none;">Edit Training Plan</button><button class="clear-btn event-btn-blue" id="eventPrepBtn" style="margin-right:10px;">Prepare for Event</button><button class="clear-btn" data-clear="workouts">Clear All</button></div>
-      <div class="panel-desc">Lordsday Run &middot; Monday Arms &middot; Tuesday Legs &middot; Wednesday Core &middot; Thursday Rucking &middot; Friday Off Duty &middot; Saturday Football</div>
+      <div class="panel-desc">Lordsday Run &middot; Monday Arms &middot; Tuesday Legs &middot; Wednesday Core &middot; Thursday Rucking &middot; Friday Off Duty &middot; Saturday Football. Tap any segment, then tap another to swap them — works with rest days too.</div>
       <div class="stat-line" id="workoutStatLine"></div>
       <div class="wk-list" id="workoutList"></div>
       <div class="gauges" id="workoutGauges"></div>
@@ -1482,7 +1485,23 @@ function getEventPrepCell(d, slot){
   if(!text) return DASH;
   return { type:'activity', text, icon: guessIconForText(text) };
 }
+function getSwapOverride(key, slot){
+  const day = ensureDay(key);
+  if(!day.segmentSwap) return undefined;
+  return day.segmentSwap[slot];
+}
+function setSwapOverride(key, slot, text){
+  const day = ensureDay(key);
+  if(!day.segmentSwap) day.segmentSwap = {};
+  day.segmentSwap[slot] = text;
+}
 function getScheduleCell(d, slot){
+  const key = dateKey(d);
+  const swapText = getSwapOverride(key, slot);
+  if(swapText !== undefined){
+    if(!swapText) return DASH;
+    return { type:'activity', text: swapText, icon: guessIconForText(swapText) };
+  }
   if(isInEventPrep(d)) return getEventPrepCell(d, slot);
   if(slot !== 'am' && slot !== 'pm') return DASH;
   const level = getLevelForDate(d);
@@ -2147,6 +2166,17 @@ function firstEntryDate(){
   return earliest;
 }
 function getStartDate(){ return firstEntryDate() || todayMidnight(); }
+function totalBibleChaptersRead(){
+  const start = getStartDate(), today = todayMidnight();
+  let total = 0;
+  let d = new Date(start);
+  while(d <= today){
+    const day = ensureDay(dateKey(d));
+    total += (day.bible.morning||0) + (day.bible.midday||0) + (day.bible.night||0) + (day.bible.overtime||0);
+    d = addDays(d, 1);
+  }
+  return total;
+}
 function allTimeDates(){
   const start = getStartDate(); const today = todayMidnight();
   const out = []; let d = new Date(start);
@@ -4478,7 +4508,7 @@ function renderBible(){
   });
   const wtd = weekToDateDates(), mtd = monthToDateDates(), all = allTimeDates();
   document.getElementById('bibleStatLine').innerHTML =
-    `Week to Date: <b>${Math.round(biblePct(wtd)*100)}%</b> &nbsp; Month to Date: <b>${Math.round(biblePct(mtd)*100)}%</b> &nbsp; All Time: <b>${Math.round(biblePct(all)*100)}%</b>`;
+    `Week to Date: <b>${Math.round(biblePct(wtd)*100)}%</b> &nbsp; Month to Date: <b>${Math.round(biblePct(mtd)*100)}%</b> &nbsp; All Time: <b>${Math.round(biblePct(all)*100)}%</b> &nbsp; Total Chapters Read: <b>${totalBibleChaptersRead()}</b>`;
   document.getElementById('bibleGauges').innerHTML =
     gaugePct('Week to Date', biblePct(wtd),104) + gaugePct('Month to Date', biblePct(mtd),104) + gaugePct('All Time', biblePct(all),104);
   renderBibleProgressChart();
@@ -4486,12 +4516,13 @@ function renderBible(){
 
 /* ---------- Training ---------- */
 let tapSwapSelected = null;
-function wireTapSwap(container, itemSelector, swapFn, rerenderFn){
+function wireTapSwap(container, itemSelector, swapFn, rerenderFn, keyFn){
+  keyFn = keyFn || (item => item.dataset.key);
   tapSwapSelected = null;
   container.querySelectorAll(itemSelector).forEach(item=>{
     item.addEventListener('click', (e)=>{
       e.stopPropagation();
-      const key = item.dataset.key;
+      const key = keyFn(item);
       if(!key) return;
       if(!tapSwapSelected){
         tapSwapSelected = { key, el: item };
@@ -4733,7 +4764,7 @@ function renderHellWeek(){
     const locked = isTest ? false : isFuture(d);
     const done = data.challenge.dailyDone[i];
     html += `<div class="wk-row hellweek-row ${isToday(d)&&!isTest?'today-row':''}">
-      <div class="day">${fmtDayDate(d)}</div>
+      <div class="day${locked?'':' hellweek-swap-handle'}" data-idx="${i}" style="${locked?'':'cursor:pointer;'}" title="${locked?'':'Tap, then tap another day to swap'}">${fmtDayDate(d)}</div>
       <div class="activity" data-activity="${escapeHtml(schedule[i])}" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;">${schedule[i]}</div>
       <span style="font-size:9px;color:var(--muted);letter-spacing:0.5px;flex-shrink:0;margin-right:8px;">+${HELL_WEEK_XP_PER_DAY} XP</span>
       <span class="check-btn${locked?' locked':''}${done?' checked':''}" data-idx="${i}"></span>
@@ -4750,6 +4781,12 @@ function renderHellWeek(){
       document.getElementById('hellWeekActivityModal').classList.add('show');
     });
   });
+  wireTapSwap(list, '.hellweek-swap-handle', (idxA, idxB)=>{
+    const s = data.challenge.schedule;
+    const i = +idxA, j = +idxB;
+    const tmp = s[i]; s[i] = s[j]; s[j] = tmp;
+    return true;
+  }, renderHellWeek, item => item.dataset.idx);
   document.getElementById('cancelChallengeBtn').addEventListener('click', ()=>{
     if(isTest){
       data.challenge = window.__hellWeekTestBackup;
@@ -4806,7 +4843,7 @@ function renderSplatter(){
 function renderWorkoutSegment(d, slot, key, locked){
   const cell = getScheduleCell(d, slot);
   if(cell.type === 'dash'){
-    return `<div class="wk-segment wk-segment-dash">–</div>`;
+    return `<div class="wk-segment wk-segment-dash" data-key="${key}" data-slot="${slot}">–</div>`;
   }
   const day = ensureDay(key);
   const inEvent = isInEventPrep(d);
@@ -4894,13 +4931,14 @@ function renderWorkouts(){
     const locked = isFuture(d);
     const daySlots = getActiveSlots(d);
     html += `<div class="wk-row wk-row-v2${use3col?' wk-row-3col':''} ${isToday(d)?'today-row':''}" style="${use3col?`grid-template-columns:195px repeat(${maxCols}, 1fr);`:''}" data-key="${key}">
-      <div class="day drag-handle" data-key="${key}" title="Tap, then tap another day to swap">${fmtDayDate(d)}</div>
-      ${colIds.map(c=> daySlots.includes(c) ? renderWorkoutSegment(d,c,key,locked) : '<div class="wk-segment wk-segment-dash">–</div>').join('')}
+      <div class="day" data-key="${key}">${fmtDayDate(d)}</div>
+      ${colIds.map(c=> daySlots.includes(c) ? renderWorkoutSegment(d,c,key,locked) : `<div class="wk-segment wk-segment-dash" data-key="${key}" data-slot="${c}">–</div>`).join('')}
     </div>`;
   });
   list.innerHTML = html;
   list.querySelectorAll('.wk-seg-check:not(.locked)').forEach(el=>{
-    el.addEventListener('click', ()=>{
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
       const day = ensureDay(el.dataset.key);
       const slot = el.dataset.slot;
       setSlotDone(day, slot, !isSlotDone(day, slot));
@@ -4909,9 +4947,19 @@ function renderWorkouts(){
       checkStreakRecords('workouts');
     });
   });
-  wireTapSwap(list, '.wk-row', (keyA, keyB)=>{
-    return false;
-  }, renderWorkouts);
+  wireTapSwap(list, '.wk-segment:not(.locked)', (keyA, keyB)=>{
+    const [dateA, slotA] = keyA.split('::');
+    const [dateB, slotB] = keyB.split('::');
+    const dA = new Date(dateA+'T00:00:00'), dB = new Date(dateB+'T00:00:00');
+    if(isFuture(dA) || isFuture(dB)) return false;
+    const cellA = getScheduleCell(dA, slotA);
+    const cellB = getScheduleCell(dB, slotB);
+    const textA = cellA.type==='dash' ? '' : cellA.text;
+    const textB = cellB.type==='dash' ? '' : cellB.text;
+    setSwapOverride(dateA, slotA, textB);
+    setSwapOverride(dateB, slotB, textA);
+    return true;
+  }, renderWorkouts, item => `${item.dataset.key}::${item.dataset.slot}`);
   function openWorkoutNoteEditor(el, key){
     const current = el.dataset.note || '';
     el.innerHTML = `<input type="text" class="wk-note-input" value="${escapeHtml(current)}" placeholder="Add a short note…" maxlength="80"><button class="wk-note-done">Done</button>`;
