@@ -4443,7 +4443,8 @@ function renderBibleProgressChart(){
       <span style="font-size:11px;color:var(--muted);"><span style="color:var(--t-reading);">━</span> Actual &nbsp; <span style="color:var(--muted);">┅</span> Target (6/day, finishing ${fmtShort(new Date(BIBLE_PLAN_END+'T00:00:00'))})</span>
       <span style="font-size:11px;font-weight:700;color:var(--ink);">${statusText}</span>
     </div>
-    ${svg}`;
+    ${svg}
+    <div style="text-align:center;font-size:10px;color:var(--muted);margin-top:2px;">${totalBibleChaptersRead()} chapters read total</div>`;
 }
 function renderBible(){
   const dates = weekDates();
@@ -4508,7 +4509,7 @@ function renderBible(){
   });
   const wtd = weekToDateDates(), mtd = monthToDateDates(), all = allTimeDates();
   document.getElementById('bibleStatLine').innerHTML =
-    `Week to Date: <b>${Math.round(biblePct(wtd)*100)}%</b> &nbsp; Month to Date: <b>${Math.round(biblePct(mtd)*100)}%</b> &nbsp; All Time: <b>${Math.round(biblePct(all)*100)}%</b> &nbsp; Total Chapters Read: <b>${totalBibleChaptersRead()}</b>`;
+    `Week to Date: <b>${Math.round(biblePct(wtd)*100)}%</b> &nbsp; Month to Date: <b>${Math.round(biblePct(mtd)*100)}%</b> &nbsp; All Time: <b>${Math.round(biblePct(all)*100)}%</b>`;
   document.getElementById('bibleGauges').innerHTML =
     gaugePct('Week to Date', biblePct(wtd),104) + gaugePct('Month to Date', biblePct(mtd),104) + gaugePct('All Time', biblePct(all),104);
   renderBibleProgressChart();
